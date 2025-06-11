@@ -142,12 +142,7 @@ export default function LoginPage() {
                 </span>
                 <code className="bg-gray-100 px-2 py-1 rounded text-xs">admin123</code>
               </div>
-              <div className="flex justify-between items-center p-2 bg-white rounded border">
-                <span>
-                  <strong>Manager:</strong> manager@atlas.com
-                </span>
-                <code className="bg-gray-100 px-2 py-1 rounded text-xs">manager123</code>
-              </div>
+             
             </div>
           </div>
         </CardContent>
