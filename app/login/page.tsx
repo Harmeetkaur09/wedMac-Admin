@@ -1,49 +1,53 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
-import { useAuth } from "../contexts/AuthContext"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, Lock, Mail, Sparkles } from "lucide-react"
+import React, { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext"; // adjust path if different
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState("")
-  const { login, isLoading, user } = useAuth()
-  const router = useRouter()
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const { login, isLoading, user } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
     if (user) {
-      router.push("/dashboard")
+      router.push("/dashboard");
     }
-  }, [user, router])
+  }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError("")
+    e.preventDefault();
+    setError("");
 
     if (!email || !password) {
-      setError("Please fill in all fields")
-      return
+      setError("Please fill in all fields");
+      return;
     }
 
-    const success = await login(email, password)
-    if (!success) {
-      setError("Invalid email or password")
+    try {
+      const success = await login(email, password);
+      if (!success) {
+        setError("Invalid username or password");
+      } else {
+        // login sets user; effect above will redirect, but we also push immediately
+        router.push("/dashboard");
+      }
+    } catch (err: any) {
+      setError(err?.message || "Login failed");
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 p-4 relative overflow-hidden">
-      {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-pink-200 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-200 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
@@ -52,12 +56,12 @@ export default function LoginPage() {
 
       <Card className="w-full max-w-md relative z-10 backdrop-blur-sm bg-white/90 shadow-2xl border-0 animate-fade-in">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-20 h-20 bg-gradient-to-br from-[#FF6B9D] to-[#FF5A8C] rounded-2xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform duration-300">
-            <Sparkles className="h-10 w-10 text-white animate-pulse" />
+          <div className="mx-auto w-50 h-50 flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
+            <img src="/images/website_logo.png" alt="Website Logo" width={140} height={50} className="object-contain" />
           </div>
           <div className="space-y-2">
             <CardTitle className="text-3xl font-bold bg-gradient-to-r from-[#FF6B9D] to-[#FF5A8C] bg-clip-text text-transparent">
-              wedMac Admin
+              Wedmac India Admin
             </CardTitle>
             <CardDescription className="text-gray-600">Sign in to access the admin dashboard</CardDescription>
           </div>
@@ -66,14 +70,14 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium text-gray-700">
-                Email
+                Username / Email
               </Label>
               <div className="relative group">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400 group-focus-within:text-[#FF6B9D] transition-colors" />
                 <Input
                   id="email"
-                  type="email"
-                  placeholder="admin@atlas.com"
+                  type="text"
+                  placeholder="admin"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10 border-gray-200 focus:border-[#FF6B9D] focus:ring-[#FF6B9D] transition-all duration-300"
@@ -129,24 +133,8 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-
-          <div className="mt-8 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border">
-            <h4 className="font-semibold text-sm mb-3 text-gray-700 flex items-center">
-              <Lock className="h-4 w-4 mr-2" />
-              Demo Credentials:
-            </h4>
-            <div className="text-xs space-y-2">
-              <div className="flex justify-between items-center p-2 bg-white rounded border">
-                <span>
-                  <strong>Admin:</strong> admin@atlas.com
-                </span>
-                <code className="bg-gray-100 px-2 py-1 rounded text-xs">admin123</code>
-              </div>
-             
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

@@ -75,10 +75,7 @@ export default function ArtistListPage() {
           <h1 className="text-3xl font-bold text-gray-900">Artist Management</h1>
           <p className="text-gray-600 mt-1">Manage all makeup artists on your platform</p>
         </div>
-        <Button className="bg-gradient-to-r from-[#FF6B9D] to-[#FF5A8C] hover:from-[#FF5A8C] hover:to-[#FF4979] shadow-lg hover:shadow-xl transition-all duration-300">
-          <Plus className="mr-2 h-4 w-4" />
-          Add New Artist
-        </Button>
+     
       </div>
 
       <Card className="mb-6">

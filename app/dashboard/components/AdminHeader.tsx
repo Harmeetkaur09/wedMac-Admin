@@ -36,21 +36,21 @@ export default function AdminHeader() {
         <div className="flex items-center space-x-4">
           {/* Notifications */}
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+            {/* <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="relative hover:bg-gray-100 transition-colors">
                 <Bell className="h-5 w-5" />
                 <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-[#FF6B9D] text-white text-xs animate-pulse">
                   3
                 </Badge>
               </Button>
-            </DropdownMenuTrigger>
+            </DropdownMenuTrigger> */}
             <DropdownMenuContent align="end" className="w-80 animate-slide-down">
-              <DropdownMenuLabel className="flex items-center justify-between">
+              {/* <DropdownMenuLabel className="flex items-center justify-between">
                 <span>Notifications</span>
                 <Badge variant="secondary" className="bg-[#FF6B9D]/10 text-[#FF6B9D]">
                   3 new
                 </Badge>
-              </DropdownMenuLabel>
+              </DropdownMenuLabel> */}
               <DropdownMenuSeparator />
               <div className="max-h-80 overflow-y-auto">
                 {[
@@ -129,14 +129,7 @@ export default function AdminHeader() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="hover:bg-gray-50 transition-colors">
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="hover:bg-gray-50 transition-colors">
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-              </DropdownMenuItem>
+            
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"

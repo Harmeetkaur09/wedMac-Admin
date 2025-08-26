@@ -14,16 +14,7 @@ export default function AdminDashboard() {
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-600 mt-1">Welcome back! Here's what's happening with your business today.</p>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" className="hover:bg-gray-50 transition-colors">
-            <Download className="mr-2 h-4 w-4" />
-            Export Data
-          </Button>
-          <Button className="bg-gradient-to-r from-[#FF6B9D] to-[#FF5A8C] hover:from-[#FF5A8C] hover:to-[#FF4979] shadow-lg hover:shadow-xl transition-all duration-300">
-            <Activity className="mr-2 h-4 w-4" />
-            View Analytics
-          </Button>
-        </div>
+      
       </div>
 
       {/* Key Metrics */}
