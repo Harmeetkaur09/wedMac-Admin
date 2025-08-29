@@ -23,13 +23,7 @@ export default function AdminHeader() {
       <div className="flex items-center justify-between px-6 py-4">
         {/* Search Section */}
         <div className="flex items-center flex-1 max-w-md">
-          <div className="relative w-full group">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-[#FF6B9D] transition-colors" />
-            <Input
-              placeholder="Search anything..."
-              className="pl-10 border-gray-200 focus:border-[#FF6B9D] focus:ring-[#FF6B9D] bg-gray-50 focus:bg-white transition-all duration-300"
-            />
-          </div>
+       
         </div>
 
         {/* Right Section */}

@@ -27,8 +27,8 @@ const sidebarItems = [
     subItems: [
       { title: "Artist List", href: "/admin/artists" },
       { title: "Profiles", href: "/admin/artists/profiles" },
-      { title: "Application Review", href: "/admin/artists/applications" },
-      { title: "Status Management", href: "/admin/artists/status" },
+  
+      // { title: "Status Management", href: "/admin/artists/status" },
     ],
   },
   {
@@ -38,7 +38,7 @@ const sidebarItems = [
     subItems: [
       { title: "Lead List", href: "/admin/leads" },
       { title: "Distribution Rules", href: "/admin/leads/distribution" },
-      { title: "Status Tracking", href: "/admin/leads/status" },
+      // { title: "Status Tracking", href: "/admin/leads/status" },
     ],
   },
   {
@@ -47,8 +47,8 @@ const sidebarItems = [
     icon: <UserCircle className="h-5 w-5" />,
     subItems: [
       { title: "User List", href: "/admin/users" },
-      { title: "Profiles", href: "/admin/users/profiles" },
-      { title: "Status Management", href: "/admin/users/status" },
+      // { title: "Profiles", href: "/admin/users/profiles" },
+      // { title: "Status Management", href: "/admin/users/status" },
     ],
   },
   {
@@ -57,7 +57,7 @@ const sidebarItems = [
     icon: <CreditCard className="h-5 w-5" />,
     subItems: [
       { title: "Subscription Plans", href: "/admin/payments/plans" },
-      { title: "Payment Processing", href: "/admin/payments/processing" },
+      // { title: "Payment Processing", href: "/admin/payments/processing" },
       { title: "Transaction History", href: "/admin/payments/transactions" },
     ],
   },
@@ -66,22 +66,22 @@ const sidebarItems = [
     href: "/admin/content",
     icon: <FileText className="h-5 w-5" />,
     subItems: [
-      { title: "Page Editing", href: "/admin/content/pages" },
-      { title: "Media Library", href: "/admin/content/media" },
+      // { title: "Page Editing", href: "/admin/content/pages" },
+      // { title: "Media Library", href: "/admin/content/media" },
       { title: "Blog Management", href: "/admin/content/blog" },
     ],
   },
-  {
-    title: "Reporting & Analytics",
-    href: "/admin/reports",
-    icon: <BarChart3 className="h-5 w-5" />,
-    subItems: [
-      { title: "Website Traffic", href: "/admin/reports/traffic" },
-      { title: "Engagement Metrics", href: "/admin/reports/engagement" },
-      { title: "Lead Reports", href: "/admin/reports/leads" },
-      { title: "Financial Reports", href: "/admin/reports/financial" },
-    ],
-  },
+  // {
+  //   title: "Reporting & Analytics",
+  //   href: "/admin/reports",
+  //   icon: <BarChart3 className="h-5 w-5" />,
+  //   subItems: [
+  //     { title: "Website Traffic", href: "/admin/reports/traffic" },
+  //     { title: "Engagement Metrics", href: "/admin/reports/engagement" },
+  //     { title: "Lead Reports", href: "/admin/reports/leads" },
+  //     { title: "Financial Reports", href: "/admin/reports/financial" },
+  //   ],
+  // },
   {
     title: "Settings",
     href: "/admin/settings",

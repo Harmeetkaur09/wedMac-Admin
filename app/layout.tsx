@@ -7,9 +7,14 @@ import { AuthProvider } from "./contexts/AuthContext"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "WedMac Admin - Makeup Artist Marketplace",
+  title: "WedMac Admin - Makeup Artist Marketplaceeee",
   description: "Admin panel for managing makeup artist marketplace",
-    generator: 'v0.dev'
+  generator: "v0.dev",
+  icons: {
+    icon: "/logotab.png", // root public folder me favicon.ico rakho
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png", // optional
+  },
 }
 
 export default function RootLayout({

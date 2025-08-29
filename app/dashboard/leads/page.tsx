@@ -206,27 +206,16 @@ export default function LeadManagement() {
           <CardTitle>Lead Overview</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-blue-50 p-4 rounded-lg">
               <p className="text-sm text-blue-600 font-medium">New Leads</p>
               <p className="text-2xl font-bold">{counts.new}</p>
             </div>
             <div className="bg-purple-50 p-4 rounded-lg">
-              <p className="text-sm text-purple-600 font-medium">Contacted</p>
+              <p className="text-sm text-purple-600 font-medium">Claimed</p>
               <p className="text-2xl font-bold">{counts.contacted}</p>
             </div>
-            <div className="bg-green-50 p-4 rounded-lg">
-              <p className="text-sm text-green-600 font-medium">Qualified</p>
-              <p className="text-2xl font-bold">{counts.qualified}</p>
-            </div>
-            <div className="bg-red-50 p-4 rounded-lg">
-              <p className="text-sm text-red-600 font-medium">Unqualified</p>
-              <p className="text-2xl font-bold">{counts.unqualified}</p>
-            </div>
-            <div className="bg-yellow-50 p-4 rounded-lg">
-              <p className="text-sm text-yellow-600 font-medium">Converted</p>
-              <p className="text-2xl font-bold">{counts.converted}</p>
-            </div>
+      
           </div>
         </CardContent>
       </Card>
@@ -235,10 +224,8 @@ export default function LeadManagement() {
         <TabsList>
           <TabsTrigger value="all">All Leads ({counts.total})</TabsTrigger>
           <TabsTrigger value="new">New ({counts.new})</TabsTrigger>
-          <TabsTrigger value="contacted">Contacted ({counts.contacted})</TabsTrigger>
-          <TabsTrigger value="qualified">Qualified ({counts.qualified})</TabsTrigger>
-          <TabsTrigger value="unqualified">Unqualified ({counts.unqualified})</TabsTrigger>
-          <TabsTrigger value="converted">Converted ({counts.converted})</TabsTrigger>
+          <TabsTrigger value="contacted">Claimed ({counts.contacted})</TabsTrigger>
+     
         </TabsList>
 
         <TabsContent value={activeTab}>
@@ -282,7 +269,7 @@ export default function LeadManagement() {
                         <TableHead>Status</TableHead>
                         <TableHead>Source</TableHead>
                         <TableHead>Date</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        {/* <TableHead className="text-right">Actions</TableHead> */}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -303,7 +290,7 @@ export default function LeadManagement() {
                           <TableCell>{lead.source ?? "-"}</TableCell>
                           <TableCell>{lead.date ?? "-"}</TableCell>
                           <TableCell className="text-right">
-                            <DropdownMenu>
+                            {/* <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon">
                                   <MoreHorizontal className="h-4 w-4" />
@@ -319,7 +306,7 @@ export default function LeadManagement() {
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem className="text-red-500">Delete Lead</DropdownMenuItem>
                               </DropdownMenuContent>
-                            </DropdownMenu>
+                            </DropdownMenu> */}
                           </TableCell>
                         </TableRow>
                       ))}

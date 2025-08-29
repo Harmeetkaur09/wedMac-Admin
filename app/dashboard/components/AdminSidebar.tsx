@@ -35,8 +35,7 @@ const sidebarItems = [
     subItems: [
       { title: "Artist List", href: "/dashboard/artists" },
       { title: "Profiles", href: "/dashboard/artists/profiles" },
-      { title: "Application Review (KYC)", href: "/dashboard/artists/applications" },
-      { title: "Status Management", href: "/dashboard/artists/status" },
+      // { title: "Status Management", href: "/dashboard/artists/status" },
     ],
   },
   {
@@ -46,7 +45,7 @@ const sidebarItems = [
     subItems: [
       { title: "Lead List", href: "/dashboard/leads" },
       { title: "Distribution Rules", href: "/dashboard/leads/distribution" },
-      { title: "Status Tracking", href: "/dashboard/leads/status" },
+      // { title: "Status Tracking", href: "/dashboard/leads/status" },
     ],
   },
   {
@@ -55,8 +54,8 @@ const sidebarItems = [
     icon: <UserCircle className="h-5 w-5" />,
     subItems: [
       { title: "User List", href: "/dashboard/users" },
-      { title: "Profiles", href: "/dashboard/users/profiles" },
-      { title: "Status Management", href: "/dashboard/users/status" },
+      // { title: "Profiles", href: "/dashboard/users/profiles" },
+      // { title: "Status Management", href: "/dashboard/users/status" },
     ],
   },
   {
@@ -65,7 +64,7 @@ const sidebarItems = [
     icon: <CreditCard className="h-5 w-5" />,
     subItems: [
       { title: "Subscription Plans", href: "/dashboard/payments/plans" },
-      { title: "Payment Processing", href: "/dashboard/payments/processing" },
+      // { title: "Payment Processing", href: "/dashboard/payments/processing" },
       { title: "Transaction History", href: "/dashboard/payments/transactions" },
     ],
   },
@@ -74,23 +73,23 @@ const sidebarItems = [
     href: "/dashboard/content",
     icon: <FileText className="h-5 w-5" />,
     subItems: [
-      { title: "WYSIWYG Editor", href: "/dashboard/content/editor" },
-      { title: "Page Editing", href: "/dashboard/content/pages" },
-      { title: "Media Library", href: "/dashboard/content/media" },
+      // { title: "WYSIWYG Editor", href: "/dashboard/content/editor" },
+      // { title: "Page Editing", href: "/dashboard/content/pages" },
+      // { title: "Media Library", href: "/dashboard/content/media" },
       { title: "Blog Management", href: "/dashboard/content/blog" },
     ],
   },
-  {
-    title: "Reporting & Analytics",
-    href: "/dashboard/reports",
-    icon: <BarChart3 className="h-5 w-5" />,
-    subItems: [
-      { title: "Website Traffic", href: "/dashboard/reports/traffic" },
-      { title: "Engagement Metrics", href: "/dashboard/reports/engagement" },
-      { title: "Lead Reports", href: "/dashboard/reports/leads" },
-      { title: "Financial Reports", href: "/dashboard/reports/financial" },
-    ],
-  },
+  // {
+  //   title: "Reporting & Analytics",
+  //   href: "/dashboard/reports",
+  //   icon: <BarChart3 className="h-5 w-5" />,
+  //   subItems: [
+  //     { title: "Website Traffic", href: "/dashboard/reports/traffic" },
+  //     { title: "Engagement Metrics", href: "/dashboard/reports/engagement" },
+  //     { title: "Lead Reports", href: "/dashboard/reports/leads" },
+  //     { title: "Financial Reports", href: "/dashboard/reports/financial" },
+  //   ],
+  // },
   {
     title: "Settings",
     href: "/dashboard/settings",
@@ -115,9 +114,7 @@ export default function AdminSidebar() {
       {/* Logo Section */}
       <div className="p-6 border-b border-gray-100">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-[#FF6B9D] to-[#FF5A8C] rounded-xl flex items-center justify-center shadow-lg">
-            <Sparkles className="h-6 w-6 text-white" />
-          </div>
+         
           <div>
             <h2 className="text-xl font-bold bg-gradient-to-r from-[#FF6B9D] to-[#FF5A8C] bg-clip-text text-transparent">
               WedMac Admin
@@ -248,13 +245,13 @@ export default function AdminSidebar() {
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-80 bg-white border-r border-gray-200 flex-col shadow-sm">
+      <aside className="hidden md:flex w-70 bg-white border-r border-gray-200 flex-col shadow-sm">
         <SidebarContent />
       </aside>
 
       {/* Mobile Sidebar */}
       <aside
-        className={`fixed left-0 top-0 z-50 h-full w-80 bg-white border-r border-gray-200 flex-col shadow-xl transform transition-transform duration-300 md:hidden ${
+        className={`fixed left-0 top-0 z-70 h-full w-60 bg-white border-r border-gray-200 flex-col shadow-xl transform transition-transform duration-300 md:hidden ${
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
