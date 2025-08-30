@@ -306,7 +306,7 @@ export default function TransactionHistoryPage() {
 
             <div>
               <label className="text-sm font-medium mb-1 block">Search</label>
-                <Search className="absolute left-2 top-2.5 text-gray-400" />
+                {/* <Search className="relative left-2 top-2.5 text-gray-400" /> */}
             <Input placeholder="Search by id / artist / plan..." className="pl-8" value={query} onChange={(e) => setQuery(e.target.value)} />
             </div>
           </div>
