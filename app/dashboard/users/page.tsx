@@ -6,11 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Filter, Search, Plus, MoreHorizontal } from "lucide-react";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Table,
   TableBody,
@@ -51,7 +47,7 @@ export default function UserManagementPage() {
       try {
         const token = sessionStorage.getItem("accessToken"); // get token from session storage
         const res = await fetch(
-          "https://wedmac-be.onrender.com/api/public/get-contact-submissions/",
+          "https://api.wedmacindia.com/api/public/get-contact-submissions/",
           {
             headers: {
               "Content-Type": "application/json",
@@ -88,7 +84,8 @@ export default function UserManagementPage() {
     // If 10 digits, assume India and prepend 91
     if (digits.length === 10) return `91${digits}`;
     // If starts with 0 and 11 digits, drop leading 0 and prepend 91
-    if (digits.length === 11 && digits.startsWith("0")) return `91${digits.slice(1)}`;
+    if (digits.length === 11 && digits.startsWith("0"))
+      return `91${digits.slice(1)}`;
     // If already starts with country code (like 91...), return as is
     return digits;
   }
@@ -129,7 +126,9 @@ export default function UserManagementPage() {
     const total = contacts.length;
     const thisMonth = contacts.filter((c) => {
       const d = new Date(c.created_at);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      return (
+        d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+      );
     }).length;
     const thisWeek = contacts.filter((c) => {
       const d = new Date(c.created_at);
@@ -138,7 +137,10 @@ export default function UserManagementPage() {
     }).length;
     const latest = contacts
       .slice()
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )[0];
     return { total, thisMonth, thisWeek, latest };
   }, [contacts]);
 
@@ -175,7 +177,7 @@ export default function UserManagementPage() {
             // re-fetch manually
             setLoading(true);
             setError(null);
-            fetch("https://wedmac-be.onrender.com/api/public/get-contact-submissions/")
+            fetch("https://api.wedmacindia.com/api/public/get-contact-submissions/")
               .then((r) => {
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 return r.json();
@@ -197,7 +199,9 @@ export default function UserManagementPage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm text-blue-600 font-medium">Total Submissions</p>
+              <p className="text-sm text-blue-600 font-medium">
+                Total Submissions
+              </p>
               <p className="text-2xl font-bold">{stats.total}</p>
               <p className="text-xs text-gray-500">All time</p>
             </div>
@@ -212,9 +216,15 @@ export default function UserManagementPage() {
               <p className="text-xs text-gray-500">Last 7 days</p>
             </div>
             <div className="bg-purple-50 p-4 rounded-lg">
-              <p className="text-sm text-purple-600 font-medium">Latest Submission</p>
-              <p className="text-2xl font-bold">{stats.latest ? stats.latest.name : "-"}</p>
-              <p className="text-xs text-gray-500">{stats.latest ? formatDate(stats.latest.created_at) : "-"}</p>
+              <p className="text-sm text-purple-600 font-medium">
+                Latest Submission
+              </p>
+              <p className="text-2xl font-bold">
+                {stats.latest ? stats.latest.name : "-"}
+              </p>
+              <p className="text-xs text-gray-500">
+                {stats.latest ? formatDate(stats.latest.created_at) : "-"}
+              </p>
             </div>
           </div>
         </CardContent>
@@ -248,7 +258,9 @@ export default function UserManagementPage() {
             ) : error ? (
               <div className="p-6 text-center text-red-500">Error: {error}</div>
             ) : filtered.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">No submissions found.</div>
+              <div className="p-6 text-center text-gray-500">
+                No submissions found.
+              </div>
             ) : (
               <Table>
                 <TableHeader>
@@ -262,11 +274,16 @@ export default function UserManagementPage() {
                 </TableHeader>
                 <TableBody>
                   {filtered.map((c) => (
-                    <TableRow key={c.id} className="hover:bg-gray-50 transition-colors">
+                    <TableRow
+                      key={c.id}
+                      className="hover:bg-gray-50 transition-colors"
+                    >
                       <TableCell>
                         <div className="flex items-center">
                           <Avatar className="h-8 w-8 mr-3">
-                            <AvatarImage src={`/placeholder.svg?height=32&width=32`} />
+                            <AvatarImage
+                              src={`/placeholder.svg?height=32&width=32`}
+                            />
                             <AvatarFallback className="bg-gradient-to-br from-[#FF6B9D] to-[#FF5A8C] text-white">
                               {c.name?.charAt(0) ?? "U"}
                             </AvatarFallback>
@@ -285,12 +302,17 @@ export default function UserManagementPage() {
                       </TableCell>
 
                       <TableCell>
-                        <p className="text-sm truncate max-w-[28ch]" title={c.message}>
+                        <p
+                          className="text-sm truncate max-w-[28ch]"
+                          title={c.message}
+                        >
                           {c.message}
                         </p>
                       </TableCell>
 
-                      <TableCell className="text-sm">{formatDate(c.created_at)}</TableCell>
+                      <TableCell className="text-sm">
+                        {formatDate(c.created_at)}
+                      </TableCell>
 
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -301,7 +323,7 @@ export default function UserManagementPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          
+
                             <DropdownMenuItem
                               onClick={() => {
                                 navigator.clipboard?.writeText(c.mobile || "");
@@ -324,7 +346,10 @@ export default function UserManagementPage() {
                             {/* NEW: WhatsApp action */}
                             <DropdownMenuItem
                               onClick={() => {
-                                openWhatsApp(c.mobile, `Hi ${c.name || ""},\n\n${c.message || ""}`);
+                                openWhatsApp(
+                                  c.mobile,
+                                  `Hi ${c.name || ""},\n\n${c.message || ""}`
+                                );
                               }}
                             >
                               Send WhatsApp
@@ -347,7 +372,11 @@ export default function UserManagementPage() {
             <Button variant="outline" size="sm">
               Previous
             </Button>
-            <Button variant="outline" size="sm" className="bg-[#FF6B9D] text-white hover:bg-[#FF5A8C]">
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-[#FF6B9D] text-white hover:bg-[#FF5A8C]"
+            >
               1
             </Button>
             <Button variant="outline" size="sm">

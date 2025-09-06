@@ -180,10 +180,7 @@ export default function LeadManagement() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Lead Management</h1>
-        <Button className="bg-[#FF6B9D] hover:bg-[#FF5A8C]">
-          <Plus className="mr-2 h-4 w-4" />
-          Add New Lead
-        </Button>
+     
       </div>
 
       <Card className="mb-6">

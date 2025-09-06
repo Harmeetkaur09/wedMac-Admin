@@ -38,7 +38,7 @@ const sidebarItems = [
     subItems: [
       { title: "Lead List", href: "/admin/leads" },
       { title: "Distribution Rules", href: "/admin/leads/distribution" },
-      // { title: "Status Tracking", href: "/admin/leads/status" },
+      { title: "Bulk Lead", href: "/admin/leads/bulk" },
     ],
   },
   {
@@ -67,7 +67,7 @@ const sidebarItems = [
     icon: <FileText className="h-5 w-5" />,
     subItems: [
       // { title: "Page Editing", href: "/admin/content/pages" },
-      // { title: "Media Library", href: "/admin/content/media" },
+      { title: "Reported Leads", href: "/admin/content/media" },
       { title: "Blog Management", href: "/admin/content/blog" },
     ],
   },

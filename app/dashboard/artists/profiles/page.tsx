@@ -58,7 +58,7 @@ export default function ArtistProfilesPage() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [showJsonId, setShowJsonId] = useState<number | null>(null);
-    // helper: normalize number for whatsapp / tel
+  // helper: normalize number for whatsapp / tel
 
   const DEFAULT_TOKEN =
     "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2NzcxNDc2LCJpYXQiOjE3NTY0MTE0NzYsImp0aSI6Ijg0ODA3ZTRmMzhiMTQzNTliNWYwZWJiZTViMjA0ZjAzIiwidXNlcl9pZCI6MzR9.lGDCdX9QiSzeWGd8eYGLt5GFZBZJHxWwx7GD5hA1X_c";
@@ -67,10 +67,15 @@ export default function ArtistProfilesPage() {
     setLoading(true);
     setError(null);
     try {
-      const tokenFromStorage = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-      const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : DEFAULT_TOKEN;
+      const tokenFromStorage =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem("accessToken")
+          : null;
+      const token = tokenFromStorage
+        ? `Bearer ${tokenFromStorage}`
+        : DEFAULT_TOKEN;
 
-      const url = new URL("https://wedmac-be.onrender.com/api/admin/artists");
+      const url = new URL("https://api.wedmacindia.com/api/admin/artists");
       url.searchParams.set("Status", "all");
 
       const res = await fetch(url.toString(), {
@@ -84,7 +89,9 @@ export default function ArtistProfilesPage() {
       }
 
       const body = await res.json();
-      const list: ArtistAPI[] = Array.isArray(body) ? body : body?.results ?? [];
+      const list: ArtistAPI[] = Array.isArray(body)
+        ? body
+        : body?.results ?? [];
       setArtists(list);
     } catch (err: any) {
       console.error(err);
@@ -118,7 +125,8 @@ export default function ArtistProfilesPage() {
     // If 10 digits, assume India and prepend 91
     if (digits.length === 10) return `91${digits}`;
     // If starts with 0 and 11 digits, drop leading 0 and prepend 91
-    if (digits.length === 11 && digits.startsWith("0")) return `91${digits.slice(1)}`;
+    if (digits.length === 11 && digits.startsWith("0"))
+      return `91${digits.slice(1)}`;
     // If already starts with country code (like 91...), return as is
     return digits;
   }
@@ -156,7 +164,10 @@ export default function ArtistProfilesPage() {
     // Expected format: "city, state - postal"
     const [cityPart, rest] = loc.split(",").map((s) => s && s.trim());
     const state = rest ? rest.split("-")[0].trim() : "-";
-    const extra = rest && rest.includes("-") ? rest.split("-").slice(1).join("-").trim() : "";
+    const extra =
+      rest && rest.includes("-")
+        ? rest.split("-").slice(1).join("-").trim()
+        : "";
     return { city: cityPart || "-", state: state || "-", extra };
   };
 
@@ -165,9 +176,11 @@ export default function ArtistProfilesPage() {
     return artists.filter((a) => {
       if (activeTab !== "all") {
         const s = (a.status || "").toLowerCase();
-        if (activeTab === "active" && !(s === "approved" || s === "active")) return false;
+        if (activeTab === "active" && !(s === "approved" || s === "active"))
+          return false;
         if (activeTab === "pending" && s !== "pending") return false;
-        if (activeTab === "inactive" && s !== "inactive" && s !== "rejected") return false;
+        if (activeTab === "inactive" && s !== "inactive" && s !== "rejected")
+          return false;
       }
       if (!q) return true;
       const name = `${a.first_name ?? ""} ${a.last_name ?? ""}`.toLowerCase();
@@ -182,10 +195,15 @@ export default function ArtistProfilesPage() {
 
   const renderBadge = (status?: string | null) => {
     const s = (status || "").toLowerCase();
-    if (s === "approved" || s === "active") return <Badge className="bg-green-100 text-green-800">{status}</Badge>;
-    if (s === "pending") return <Badge className="bg-yellow-100 text-yellow-800">{status}</Badge>;
-    if (s === "rejected" || s === "inactive") return <Badge className="bg-red-100 text-red-800">{status}</Badge>;
-    return <Badge className="bg-gray-100 text-gray-800">{status ?? "unknown"}</Badge>;
+    if (s === "approved" || s === "active")
+      return <Badge className="bg-green-100 text-green-800">{status}</Badge>;
+    if (s === "pending")
+      return <Badge className="bg-yellow-100 text-yellow-800">{status}</Badge>;
+    if (s === "rejected" || s === "inactive")
+      return <Badge className="bg-red-100 text-red-800">{status}</Badge>;
+    return (
+      <Badge className="bg-gray-100 text-gray-800">{status ?? "unknown"}</Badge>
+    );
   };
 
   const changeStatus = async (
@@ -209,20 +227,35 @@ export default function ArtistProfilesPage() {
     const prev = artists.slice();
     // optimistic update: update status and internal_notes locally immediately
     setArtists((s) =>
-      s.map((a) => (a.id === id ? { ...a, status: newStatus, internal_notes: notes ?? a.internal_notes } : a))
+      s.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              status: newStatus,
+              internal_notes: notes ?? a.internal_notes,
+            }
+          : a
+      )
     );
 
     try {
-      const tokenFromStorage = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-      const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : DEFAULT_TOKEN;
+      const tokenFromStorage =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem("accessToken")
+          : null;
+      const token = tokenFromStorage
+        ? `Bearer ${tokenFromStorage}`
+        : DEFAULT_TOKEN;
 
       // try the endpoint that your curl used first (POST /api/admin/artist/:id/status/)
-      const postUrl = `https://wedmac-be.onrender.com/api/admin/artist/${id}/status-approved/`;
+      const postUrl = `https://api.wedmacindia.com/api/admin/artist/${id}/status-approved/`;
       const postRes = await fetch(postUrl, {
         method: "POST",
         headers: { Authorization: token, "Content-Type": "application/json" },
         body: JSON.stringify(
-          notes != null && notes !== "" ? { status: newStatus, internal_notes: notes } : { status: newStatus }
+          notes != null && notes !== ""
+            ? { status: newStatus, internal_notes: notes }
+            : { status: newStatus }
         ),
       });
 
@@ -231,28 +264,36 @@ export default function ArtistProfilesPage() {
         try {
           const body = await postRes.json().catch(() => null);
           if (body && typeof body === "object") {
-            setArtists((s) => s.map((a) => (a.id === id ? { ...a, ...body } : a)));
+            setArtists((s) =>
+              s.map((a) => (a.id === id ? { ...a, ...body } : a))
+            );
           }
         } catch {}
-          toast.success("Status updated successfully!"); // <--- Toast here
+        toast.success("Status updated successfully!"); // <--- Toast here
 
         return;
       }
 
       // if POST failed, try the older PATCH endpoint (some backends expect this)
-      const patchUrl = `https://wedmac-be.onrender.com/api/admin/artists/${id}/`;
+      const patchUrl = `https://api.wedmacindia.com/api/admin/artists/${id}/`;
       const patchRes = await fetch(patchUrl, {
         method: "PATCH",
         headers: { Authorization: token, "Content-Type": "application/json" },
-        body: JSON.stringify(notes != null && notes !== "" ? { status: newStatus, internal_notes: notes } : { status: newStatus }),
+        body: JSON.stringify(
+          notes != null && notes !== ""
+            ? { status: newStatus, internal_notes: notes }
+            : { status: newStatus }
+        ),
       });
 
       if (patchRes.ok) {
         const body = await patchRes.json().catch(() => null);
         if (body && typeof body === "object") {
-          setArtists((s) => s.map((a) => (a.id === id ? { ...a, ...body } : a)));
+          setArtists((s) =>
+            s.map((a) => (a.id === id ? { ...a, ...body } : a))
+          );
         }
-          toast.success("Status updated successfully!"); // <--- Toast here also
+        toast.success("Status updated successfully!"); // <--- Toast here also
 
         return;
       }
@@ -260,7 +301,9 @@ export default function ArtistProfilesPage() {
       // both failed -> throw to catch block
       const postText = await postRes.text().catch(() => "");
       const patchText = await patchRes.text().catch(() => "");
-      throw new Error(`Status update failed. POST: ${postRes.status} ${postText} | PATCH: ${patchRes.status} ${patchText}`);
+      throw new Error(
+        `Status update failed. POST: ${postRes.status} ${postText} | PATCH: ${patchRes.status} ${patchText}`
+      );
     } catch (err: any) {
       console.error(err);
       setError(err?.message || "Failed to update status");
@@ -272,13 +315,14 @@ export default function ArtistProfilesPage() {
     }
   };
 
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Artist Profiles</h1>
-          <p className="text-gray-600 mt-1">Showing every field returned by the API in a clear layout</p>
+          <p className="text-gray-600 mt-1">
+            Showing every field returned by the API in a clear layout
+          </p>
         </div>
 
         <div className="flex gap-2">
@@ -297,7 +341,11 @@ export default function ArtistProfilesPage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v)} className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v)}
+        className="w-full"
+      >
         <TabsList className="mb-4">
           <TabsTrigger value="all">All Profiles</TabsTrigger>
           <TabsTrigger value="active">Active</TabsTrigger>
@@ -314,31 +362,32 @@ export default function ArtistProfilesPage() {
             filtered.map((artist) => {
               const loc = parseLocation(artist.location);
               return (
-                <Card key={artist.id} className="hover:shadow-md transition-shadow">
+                <Card
+                  key={artist.id}
+                  className="hover:shadow-md transition-shadow"
+                >
                   <CardContent className="p-6">
                     <div className="flex flex-col md:flex-row gap-6">
                       {/* Left column: avatar + quick stats */}
                       <div className="flex flex-col items-center space-y-3 w-full md:w-56">
-                   <Avatar className="h-70 w-50 rounded-none">
-  {artist.profile_picture?.file_url ? (
-    <AvatarImage
-      src={artist.profile_picture.file_url}
-      className="h-70 w-50 rounded-none"
-    />
-  ) : (
-    <>
-      <AvatarImage
-        src={`/placeholder.svg?height=160&width=160`}
-        className="h-70 w-50 rounded-none"
-      />
-      <AvatarFallback className="bg-gradient-to-br from-[#FF6B9D] to-[#FF5A8C] text-white text-4xl h-70 w-50 rounded-none flex items-center justify-center">
-        {(artist.first_name ?? "").charAt(0) || "A"}
-      </AvatarFallback>
-    </>
-  )}
-</Avatar>
-
-
+                        <Avatar className="h-70 w-50 rounded-none">
+                          {artist.profile_picture?.file_url ? (
+                            <AvatarImage
+                              src={artist.profile_picture.file_url}
+                              className="h-70 w-50 rounded-none"
+                            />
+                          ) : (
+                            <>
+                              <AvatarImage
+                                src={`/placeholder.svg?height=160&width=160`}
+                                className="h-70 w-50 rounded-none"
+                              />
+                              <AvatarFallback className="bg-gradient-to-br from-[#FF6B9D] to-[#FF5A8C] text-white text-4xl h-70 w-50 rounded-none flex items-center justify-center">
+                                {(artist.first_name ?? "").charAt(0) || "A"}
+                              </AvatarFallback>
+                            </>
+                          )}
+                        </Avatar>
 
                         <div className="text-center">
                           <div className="flex items-center justify-center">
@@ -349,22 +398,24 @@ export default function ArtistProfilesPage() {
                         </div>
 
                         {/* {renderBadge(artist.status)} */}
-
-                      
                       </div>
 
                       {/* Right column: full structured details */}
                       <div className="flex-1 space-y-4">
                         <div className="flex justify-between items-start">
                           <div>
-                            <h3 className="text-xl font-bold">{`${artist.first_name ?? ""} ${artist.last_name ?? ""}`}</h3>
-                            <p className="text-gray-600">{artist.email ?? artist.phone}</p>
-                            <p className="text-sm text-gray-500">{artist.location}</p>
+                            <h3 className="text-xl font-bold">{`${
+                              artist.first_name ?? ""
+                            } ${artist.last_name ?? ""}`}</h3>
+                            <p className="text-gray-600">
+                              {artist.email ?? artist.phone}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {artist.location}
+                            </p>
                           </div>
 
                           <div className="flex gap-2">
-                         
-                         
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="sm">
@@ -374,24 +425,29 @@ export default function ArtistProfilesPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 {/* <DropdownMenuItem onClick={() => alert("View Full Profile: " + artist.id)}>View Full Profile</DropdownMenuItem> */}
-   <DropdownMenuItem
-                              onClick={() => {
-                                makeCall(artist.user_phone);
-                              }}
-                            >
-                              Call
-                            </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    makeCall(artist.user_phone);
+                                  }}
+                                >
+                                  Call
+                                </DropdownMenuItem>
 
-                            {/* NEW: WhatsApp action */}
-                            <DropdownMenuItem
-                              onClick={() => {
-                                openWhatsApp(artist.user_phone, `Hi ${artist.first_name || ""},\n\n${artist.internal_notes || ""}`);
-                              }}
-                            >
-                              Send WhatsApp
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            {/* <DropdownMenuItem onClick={() => changeStatus(artist.id, "approved")}>Mark Approved</DropdownMenuItem> */}
+                                {/* NEW: WhatsApp action */}
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    openWhatsApp(
+                                      artist.user_phone,
+                                      `Hi ${artist.first_name || ""},\n\n${
+                                        artist.internal_notes || ""
+                                      }`
+                                    );
+                                  }}
+                                >
+                                  Send WhatsApp
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                {/* <DropdownMenuItem onClick={() => changeStatus(artist.id, "approved")}>Mark Approved</DropdownMenuItem> */}
                                 {/* <DropdownMenuItem className="text-red-500" onClick={() => changeStatus(artist.id, "rejected")}>
                                   Deactivate
                                 </DropdownMenuItem> */}
@@ -404,53 +460,108 @@ export default function ArtistProfilesPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="space-y-1">
                             <div className="text-xs text-gray-500">Phone</div>
-                            <div className="font-medium">{artist.phone ?? "-"}</div>
+                            <div className="font-medium">
+                              {artist.phone ?? "-"}
+                            </div>
 
-                            <div className="text-xs text-gray-500 mt-3">DOB</div>
-                            <div className="font-medium">{artist.date_of_birth ?? "-"}</div>
+                            <div className="text-xs text-gray-500 mt-3">
+                              DOB
+                            </div>
+                            <div className="font-medium">
+                              {artist.date_of_birth ?? "-"}
+                            </div>
 
-                            <div className="text-xs text-gray-500 mt-3">Gender</div>
-                            <div className="font-medium">{artist.gender ?? "-"}</div>
+                            <div className="text-xs text-gray-500 mt-3">
+                              Gender
+                            </div>
+                            <div className="font-medium">
+                              {artist.gender ?? "-"}
+                            </div>
                           </div>
 
                           <div className="space-y-1">
-                            <div className="text-xs text-gray-500">Location (City)</div>
+                            <div className="text-xs text-gray-500">
+                              Location (City)
+                            </div>
                             <div className="font-medium">{loc.city}</div>
 
-                            <div className="text-xs text-gray-500 mt-3">State</div>
+                            <div className="text-xs text-gray-500 mt-3">
+                              State
+                            </div>
                             <div className="font-medium">{loc.state}</div>
 
-                            <div className="text-xs text-gray-500 mt-3">Postal / Extra</div>
-                            <div className="font-medium">{loc.extra || "-"}</div>
+                            <div className="text-xs text-gray-500 mt-3">
+                              Postal / Extra
+                            </div>
+                            <div className="font-medium">
+                              {loc.extra || "-"}
+                            </div>
                           </div>
 
                           <div className="space-y-1">
-                            <div className="text-xs text-gray-500">Payment Status</div>
-                            <div className="font-medium">{artist.payment_status ?? "-"}</div>
+                            <div className="text-xs text-gray-500">
+                              Payment Status
+                            </div>
+                            <div className="font-medium">
+                              {artist.payment_status ?? "-"}
+                            </div>
 
-                            <div className="text-xs text-gray-500 mt-3">Referral Code</div>
-                            <div className="font-medium">{artist.my_referral_code ?? "-"}</div>
+                            <div className="text-xs text-gray-500 mt-3">
+                              Referral Code
+                            </div>
+                            <div className="font-medium">
+                              {artist.my_referral_code ?? "-"}
+                            </div>
 
-                            <div className="text-xs text-gray-500 mt-3">Created At</div>
-                            <div className="font-medium">{formatDate(artist.created_at)}</div>
+                            <div className="text-xs text-gray-500 mt-3">
+                              Created At
+                            </div>
+                            <div className="font-medium">
+                              {formatDate(artist.created_at)}
+                            </div>
                           </div>
                         </div>
 
                         <div>
-                          <h4 className="text-sm font-medium mb-2">Internal Notes / Bio</h4>
-                          <p className="text-sm text-gray-700">{artist.internal_notes || "-"}</p>
+                          <h4 className="text-sm font-medium mb-2">
+                            Internal Notes / Bio
+                          </h4>
+                          <p className="text-sm text-gray-700">
+                            {artist.internal_notes || "-"}
+                          </p>
                         </div>
 
                         <div>
-                          <h4 className="text-sm font-medium mb-2">Certifications ({(artist.certifications || []).length})</h4>
+                          <h4 className="text-sm font-medium mb-2">
+                            Certifications (
+                            {(artist.certifications || []).length})
+                          </h4>
                           <div className="flex flex-wrap gap-3">
-                            {(artist.certifications || []).map((c: FileItem) => (
-                              <a key={c.id} href={c.file_url} target="_blank" rel="noreferrer" className="block">
-                                <img src={c.file_url} alt={c.file_name} className="h-20 w-28 object-cover rounded-md border" />
-                                <div className="text-xs mt-1 text-gray-600">{c.tag}</div>
-                              </a>
-                            ))}
-                            {(artist.certifications || []).length === 0 && <div className="text-sm text-gray-500">No certifications</div>}
+                            {(artist.certifications || []).map(
+                              (c: FileItem) => (
+                                <a
+                                  key={c.id}
+                                  href={c.file_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="block"
+                                >
+                                  <img
+                                    src={c.file_url}
+                                    alt={c.file_name}
+                                    className="h-20 w-28 object-cover rounded-md border"
+                                  />
+                                  <div className="text-xs mt-1 text-gray-600">
+                                    {c.tag}
+                                  </div>
+                                </a>
+                              )
+                            )}
+                            {(artist.certifications || []).length === 0 && (
+                              <div className="text-sm text-gray-500">
+                                No certifications
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -470,13 +581,28 @@ export default function ArtistProfilesPage() {
                         {/* Raw JSON drawer using native <details> to keep it simple */}
                         {showJsonId === artist.id && (
                           <details open className="mt-4 bg-gray-50 p-3 rounded">
-                            <summary className="cursor-pointer font-medium">JSON (click to collapse)</summary>
-                            <pre className="text-xs mt-2 overflow-auto">{JSON.stringify(artist, null, 2)}</pre>
+                            <summary className="cursor-pointer font-medium">
+                              JSON (click to collapse)
+                            </summary>
+                            <pre className="text-xs mt-2 overflow-auto">
+                              {JSON.stringify(artist, null, 2)}
+                            </pre>
                             <div className="mt-2 flex gap-2">
-                              <Button variant="outline" size="sm" onClick={() => navigator.clipboard?.writeText(JSON.stringify(artist))}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  navigator.clipboard?.writeText(
+                                    JSON.stringify(artist)
+                                  )
+                                }
+                              >
                                 Copy JSON
                               </Button>
-                              <Button size="sm" onClick={() => setShowJsonId(null)}>
+                              <Button
+                                size="sm"
+                                onClick={() => setShowJsonId(null)}
+                              >
                                 Close
                               </Button>
                             </div>
@@ -493,24 +619,45 @@ export default function ArtistProfilesPage() {
 
         <TabsContent value="active">
           <div className="space-y-6">
-            {filtered.filter((a) => (a.status || "").toLowerCase() === "approved" || (a.status || "").toLowerCase() === "active").length === 0 ? (
+            {filtered.filter(
+              (a) =>
+                (a.status || "").toLowerCase() === "approved" ||
+                (a.status || "").toLowerCase() === "active"
+            ).length === 0 ? (
               <Card>
                 <CardContent className="p-6">No active artists</CardContent>
               </Card>
             ) : (
               filtered
-                .filter((a) => (a.status || "").toLowerCase() === "approved" || (a.status || "").toLowerCase() === "active")
+                .filter(
+                  (a) =>
+                    (a.status || "").toLowerCase() === "approved" ||
+                    (a.status || "").toLowerCase() === "active"
+                )
                 .map((a) => (
-                  <Card key={a.id} className="hover:shadow-md transition-shadow">
+                  <Card
+                    key={a.id}
+                    className="hover:shadow-md transition-shadow"
+                  >
                     <CardContent className="p-6">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                           <Avatar className="h-12 w-12">
-                            {a.profile_picture?.file_url ? <AvatarImage src={a.profile_picture.file_url} /> : <AvatarFallback>{(a.first_name ?? "").charAt(0)}</AvatarFallback>}
+                            {a.profile_picture?.file_url ? (
+                              <AvatarImage src={a.profile_picture.file_url} />
+                            ) : (
+                              <AvatarFallback>
+                                {(a.first_name ?? "").charAt(0)}
+                              </AvatarFallback>
+                            )}
                           </Avatar>
                           <div>
-                            <div className="font-medium">{`${a.first_name ?? ""} ${a.last_name ?? ""}`}</div>
-                            <div className="text-sm text-gray-500">{a.email ?? a.phone}</div>
+                            <div className="font-medium">{`${
+                              a.first_name ?? ""
+                            } ${a.last_name ?? ""}`}</div>
+                            <div className="text-sm text-gray-500">
+                              {a.email ?? a.phone}
+                            </div>
                           </div>
                         </div>
                         {renderBadge(a.status)}
@@ -524,7 +671,9 @@ export default function ArtistProfilesPage() {
 
         <TabsContent value="pending">
           <div className="space-y-6">
-            {filtered.filter((a) => (a.status || "").toLowerCase() === "pending").length === 0 ? (
+            {filtered.filter(
+              (a) => (a.status || "").toLowerCase() === "pending"
+            ).length === 0 ? (
               <Card>
                 <CardContent className="p-6">No pending artists</CardContent>
               </Card>
@@ -532,22 +681,50 @@ export default function ArtistProfilesPage() {
               filtered
                 .filter((a) => (a.status || "").toLowerCase() === "pending")
                 .map((a) => (
-                  <Card key={a.id} className="hover:shadow-md transition-shadow">
+                  <Card
+                    key={a.id}
+                    className="hover:shadow-md transition-shadow"
+                  >
                     <CardContent className="p-6">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                           <Avatar className="h-12 w-12">
-                            {a.profile_picture?.file_url ? <AvatarImage src={a.profile_picture.file_url} /> : <AvatarFallback>{(a.first_name ?? "").charAt(0)}</AvatarFallback>}
+                            {a.profile_picture?.file_url ? (
+                              <AvatarImage src={a.profile_picture.file_url} />
+                            ) : (
+                              <AvatarFallback>
+                                {(a.first_name ?? "").charAt(0)}
+                              </AvatarFallback>
+                            )}
                           </Avatar>
                           <div>
-                            <div className="font-medium">{`${a.first_name ?? ""} ${a.last_name ?? ""}`}</div>
-                            <div className="text-sm text-gray-500">{a.email ?? a.phone}</div>
+                            <div className="font-medium">{`${
+                              a.first_name ?? ""
+                            } ${a.last_name ?? ""}`}</div>
+                            <div className="text-sm text-gray-500">
+                              {a.email ?? a.phone}
+                            </div>
                           </div>
                         </div>
                         <div className="flex gap-2">
-                      <Button size="sm" onClick={() => changeStatus(a.id, "approved", { askNotes: true })}>Approve</Button>
-<Button size="sm" variant="outline" onClick={() => changeStatus(a.id, "rejected", { askNotes: true })}>Reject</Button>
-  </div>
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              changeStatus(a.id, "approved", { askNotes: true })
+                            }
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              changeStatus(a.id, "rejected", { askNotes: true })
+                            }
+                          >
+                            Reject
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -558,24 +735,45 @@ export default function ArtistProfilesPage() {
 
         <TabsContent value="inactive">
           <div className="space-y-6">
-            {filtered.filter((a) => (a.status || "").toLowerCase() === "inactive" || (a.status || "").toLowerCase() === "rejected").length === 0 ? (
+            {filtered.filter(
+              (a) =>
+                (a.status || "").toLowerCase() === "inactive" ||
+                (a.status || "").toLowerCase() === "rejected"
+            ).length === 0 ? (
               <Card>
                 <CardContent className="p-6">No inactive artists</CardContent>
               </Card>
             ) : (
               filtered
-                .filter((a) => (a.status || "").toLowerCase() === "inactive" || (a.status || "").toLowerCase() === "rejected")
+                .filter(
+                  (a) =>
+                    (a.status || "").toLowerCase() === "inactive" ||
+                    (a.status || "").toLowerCase() === "rejected"
+                )
                 .map((a) => (
-                  <Card key={a.id} className="hover:shadow-md transition-shadow">
+                  <Card
+                    key={a.id}
+                    className="hover:shadow-md transition-shadow"
+                  >
                     <CardContent className="p-6">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                           <Avatar className="h-12 w-12">
-                            {a.profile_picture?.file_url ? <AvatarImage src={a.profile_picture.file_url} /> : <AvatarFallback>{(a.first_name ?? "").charAt(0)}</AvatarFallback>}
+                            {a.profile_picture?.file_url ? (
+                              <AvatarImage src={a.profile_picture.file_url} />
+                            ) : (
+                              <AvatarFallback>
+                                {(a.first_name ?? "").charAt(0)}
+                              </AvatarFallback>
+                            )}
                           </Avatar>
                           <div>
-                            <div className="font-medium">{`${a.first_name ?? ""} ${a.last_name ?? ""}`}</div>
-                            <div className="text-sm text-gray-500">{a.email ?? a.phone}</div>
+                            <div className="font-medium">{`${
+                              a.first_name ?? ""
+                            } ${a.last_name ?? ""}`}</div>
+                            <div className="text-sm text-gray-500">
+                              {a.email ?? a.phone}
+                            </div>
                           </div>
                         </div>
                         {renderBadge(a.status)}

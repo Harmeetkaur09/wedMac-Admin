@@ -1,6 +1,13 @@
+// app/contexts/AuthContext.tsx  (replace current file)
 "use client";
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 
 interface User {
@@ -14,6 +21,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   login: (username: string, password: string) => Promise<boolean>;
+  loginWithToken: (token: string, userObj?: User | null) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -29,7 +37,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // restore saved user & token (if any)
     try {
       const savedUser = localStorage.getItem("atlas_admin_user");
-      const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
+      const token =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem("accessToken")
+          : null;
       if (savedUser && token) {
         setUser(JSON.parse(savedUser));
       }
@@ -40,20 +51,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (
+    username: string,
+    password: string
+  ): Promise<boolean> => {
     setIsLoading(true);
     try {
       // POST to login endpoint
-      const resp = await fetch("https://wedmac-be.onrender.com/api/superadmin/login/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username,
-          password,
-        }),
-      });
+      const resp = await fetch(
+        "https://api.wedmacindia.com/api/superadmin/login/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username,
+            password,
+          }),
+        }
+      );
 
       if (!resp.ok) {
         const txt = await resp.text();
@@ -64,7 +81,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const data = await resp.json();
 
-      // find token in response (try common fields)
       const token =
         data?.token ||
         data?.access ||
@@ -75,19 +91,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data?.tokens?.access ||
         null;
 
-      if (!token) {
-        // maybe response contains a nested structure
-        console.warn("No token found in login response, saving raw response as user");
-      } else {
+      if (token) {
         sessionStorage.setItem("accessToken", token);
       }
 
-      // extract user info if provided
-      const userObj =
-        data?.user ||
+      const userObj = data?.user ||
         data?.data?.user ||
         (data?.data && typeof data.data === "object" && data.data) ||
-        // fallback minimal user
         {
           id: data?.user_id || data?.id || undefined,
           email: data?.email || username,
@@ -111,6 +121,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // NEW: loginWithToken — call this after OTP verify success
+  const loginWithToken = async (token: string, userObj?: User | null) => {
+    try {
+      setIsLoading(true);
+      if (token) {
+        sessionStorage.setItem("accessToken", token);
+      }
+      if (userObj) {
+        setUser(userObj);
+        try {
+          localStorage.setItem("atlas_admin_user", JSON.stringify(userObj));
+        } catch (err) {
+          console.warn("Failed to persist user to localStorage", err);
+        }
+      } else {
+        // if no user provided, try to read existing saved user
+        const saved = localStorage.getItem("atlas_admin_user");
+        if (saved) setUser(JSON.parse(saved));
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = () => {
     setUser(null);
     try {
@@ -122,7 +156,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login");
   };
 
-  return <AuthContext.Provider value={{ user, login, logout, isLoading }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, login, loginWithToken, logout, isLoading }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

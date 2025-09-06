@@ -1,403 +1,408 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Filter, Search, Upload, ImageIcon, Video, FileText, Download, Trash2, Edit } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "react-hot-toast";
 
-/*
-  MediaManagement page with Video Review CRUD integration.
-  - GET  /api/reviews/video-reviews/get/
-  - POST /api/reviews/video-reviews/create/       (multipart/form-data)
-  - PUT  /api/reviews/video-reviews/update/:id/   (multipart/form-data supported)
-  - DELETE /api/reviews/video-reviews/delete/:id/
-
-  Notes:
-  - Uses sessionStorage.adminToken (fallback to DEFAULT_TOKEN for dev).
-  - Multipart requests SHOULD NOT set `Content-Type` header so browser adds boundary.
-  - This file is an inline, minimal UI. Replace prompt/alert flows with modals if desired.
-*/
-
-type VideoReview = {
+type Claim = {
   id: number;
-  comment: string;
-  client_name: string;
-  location?: string | null;
-  used_service: string;
-  video?: string | null;
-  created_at?: string;
-  [key: string]: any;
+  claimant_name?: string | null;
+  claimant_phone?: string | null;
+  claimant_email?: string | null;
+  lead?: number | null;
+  artist?: number | null;
+  reason?: string | null;
+  details?: string | null;
+  status?: "pending" | "approved" | "rejected" | string;
+  created_at?: string | null;
+  // any other fields returned by API
+  [k: string]: any;
 };
 
-const DEFAULT_TOKEN =
-  "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2NzcxNDc2LCJpYXQiOjE3NTY0MTE0NzYsImp0aSI6Ijg0ODA3ZTRmMzhiMTQzNTliNWYwZWJiZTViMjA0ZjAzIiwidXNlcl9pZCI6MzR9.lGDCdX9QiSzeWGd8eYGLt5GFZBZJHxWwx7GD5hA1X_c";
+export default function FalseClaimsAdminPage() {
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | string>("all");
+  const [page, setPage] = useState(1);
+  const perPage = 10;
+  const [counts, setCounts] = useState({ all: 0, pending: 0, approved: 0, rejected: 0 });
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE || "https://wedmac-be.onrender.com";
+  // simple modal state for resolve action
+  const [modalOpen, setModalOpen] = useState(false);
+  const [activeClaim, setActiveClaim] = useState<Claim | null>(null);
+  const [resolveStatus, setResolveStatus] = useState<"approved" | "rejected">("approved");
+  const [adminNote, setAdminNote] = useState("");
+  const [resolving, setResolving] = useState(false);
 
-export default function MediaManagementPage() {
-  // existing static files (kept for library UI)
-  const mediaFiles = [
-    {
-      id: 1,
-      name: "hero-image.jpg",
-      type: "image",
-      size: "2.4 MB",
-      dimensions: "1920x1080",
-      uploadDate: "2023-06-10",
-      url: "/placeholder.svg?height=200&width=300",
-    },
-    // ... (truncated for brevity) - keep the rest in your local file if needed
-  ];
+  const DEFAULT_TOKEN =
+    typeof window !== "undefined"
+      ? undefined
+      : ""; // no server-side token here; component will read sessionStorage at runtime
 
-  // VIDEO REVIEWS state
-  const [videoReviews, setVideoReviews] = useState<VideoReview[]>([]);
-  const [loadingReviews, setLoadingReviews] = useState(false);
-  const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const getAuthHeader = () => {
+    if (typeof window === "undefined") return "";
+    const stored = sessionStorage.getItem("accessToken") || sessionStorage.getItem("token") || sessionStorage.getItem("authToken");
+    return stored ? `Bearer ${stored}` : "";
+  };
 
-  // form state for create / update
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [comment, setComment] = useState("");
-  const [clientName, setClientName] = useState("");
-  const [location, setLocation] = useState("");
-  const [usedService, setUsedService] = useState("");
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const fetchClaims = async (status: string | null = null) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const url = new URL("https://api.wedmacindia.com/api/leads/false-claims/admin/");
+      if (status && status !== "all") url.searchParams.set("status", status);
+
+      const res = await fetch(url.toString(), {
+        headers: {
+          Authorization: getAuthHeader(),
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`API error: ${res.status} ${text}`);
+      }
+
+      const json = await res.json();
+
+      // Expecting shape: { claims: [...], counts: { all, pending, approved, rejected } }
+ let list: Claim[] = [];
+if (Array.isArray(json?.claims)) {
+  list = json.claims.map((c: any) => ({
+    ...c,
+    claimant_name: `${c.lead_first_name || ""} ${c.lead_last_name || ""}`.trim(),
+    claimant_phone: c.lead_phone,
+  }));
+}
+
+
+      setClaims(list);
+
+      if (json?.counts) {
+        setCounts({
+          all: Number(json.counts.all || list.length || 0),
+          pending: Number(json.counts.pending || 0),
+          approved: Number(json.counts.approved || 0),
+          rejected: Number(json.counts.rejected || 0),
+        });
+      } else {
+        // derive counts client-side if counts not provided
+        const c = { all: list.length, pending: 0, approved: 0, rejected: 0 };
+        for (const cl of list) {
+          const s = (cl.status || "").toLowerCase();
+          if (s === "pending") c.pending++;
+          else if (s === "approved") c.approved++;
+          else if (s === "rejected") c.rejected++;
+        }
+        setCounts(c);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Failed to load claims");
+      setClaims([]);
+    } finally {
+      setLoading(false);
+      setPage(1);
+    }
+  };
 
   useEffect(() => {
-    fetchVideoReviews();
+    // On mount, fetch all claims
+    fetchClaims(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const getToken = () => {
-    const t = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-    return t ? `Bearer ${t}` : DEFAULT_TOKEN;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return claims.filter((c) => {
+      if (statusFilter !== "all" && (c.status || "").toLowerCase() !== statusFilter.toLowerCase()) return false;
+      if (!q) return true;
+      const name = `${c.claimant_name ?? ""}`.toLowerCase();
+      return (
+        name.includes(q) ||
+        String(c.claimant_phone ?? "").toLowerCase().includes(q) ||
+        String(c.claimant_email ?? "").toLowerCase().includes(q) ||
+        String(c.reason ?? "").toLowerCase().includes(q) ||
+        String(c.details ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [claims, search, statusFilter]);
+
+  const pages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const paginated = filtered.slice((page - 1) * perPage, page * perPage);
+
+  useEffect(() => {
+    if (page > pages) setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pages]);
+
+  const openResolveModal = (claim: Claim) => {
+    setActiveClaim(claim);
+    setResolveStatus("approved");
+    setAdminNote("");
+    setModalOpen(true);
   };
 
-  const fetchVideoReviews = async () => {
-    setLoadingReviews(true);
-    setReviewsError(null);
+  const closeModal = () => {
+    setModalOpen(false);
+    setActiveClaim(null);
+    setResolving(false);
+  };
+
+  const resolveClaim = async () => {
+    if (!activeClaim) return;
+    setResolving(true);
     try {
-      const res = await fetch(`${BASE}/api/reviews/video-reviews/get/`, {
-        headers: { Authorization: getToken() },
-        cache: "no-store",
+      const url = `https://api.wedmacindia.com/api/leads/false-claims/${activeClaim.id}/resolve/`;
+      const body = { status: resolveStatus, admin_note: adminNote };
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          Authorization: getAuthHeader(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
       });
+      const json = await res.json().catch(() => null);
       if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`Failed to fetch video reviews: ${res.status} ${txt}`);
-      }
-      const body = await res.json();
-      const list: VideoReview[] = Array.isArray(body) ? body : body?.results ?? [];
-      setVideoReviews(list);
-    } catch (err: any) {
-      console.error(err);
-      setReviewsError(err?.message || "Failed to load video reviews");
-    } finally {
-      setLoadingReviews(false);
-    }
-  };
-
-  const resetForm = () => {
-    setEditingId(null);
-    setComment("");
-    setClientName("");
-    setLocation("");
-    setUsedService("");
-    if (fileRef.current) fileRef.current.value = "";
-  };
-
-  const populateFormForEdit = (rev: VideoReview) => {
-    setEditingId(rev.id);
-    setComment(rev.comment || "");
-    setClientName(rev.client_name || "");
-    setLocation(rev.location || "");
-    setUsedService(rev.used_service || "");
-    if (fileRef.current) fileRef.current.value = ""; // don't prefill file input
-    // scroll into view if needed
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const createOrUpdate = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setSubmitting(true);
-    try {
-      if (!comment.trim() || !clientName.trim() || !usedService.trim()) {
-        throw new Error("Please fill required fields: comment, client name and used service.");
+        console.error("Resolve failed", res.status, json);
+        toast.error(json?.message || `Resolve failed: ${res.status}`);
+        return;
       }
 
-      const form = new FormData();
-      form.append("comment", comment);
-      form.append("client_name", clientName);
-      if (location) form.append("location", location);
-      form.append("used_service", usedService);
+      toast.success("Claim updated");
 
-      const file = fileRef.current?.files?.[0];
-      if (file) form.append("video", file);
-
-      const token = getToken();
-
-      if (editingId == null) {
-        // CREATE
-        const res = await fetch(`${BASE}/api/reviews/video-reviews/create/`, {
-          method: "POST",
-          headers: {
-            Authorization: token,
-            // DO NOT set Content-Type for multipart; browser will add boundary
-          },
-          body: form,
-        });
-        if (!res.ok) {
-          const txt = await res.text().catch(() => "");
-          throw new Error(`Create failed: ${res.status} ${txt}`);
+      // update local state: set claim status, update counts
+      setClaims((prev) => prev.map((c) => (c.id === activeClaim.id ? { ...c, status: resolveStatus } : c)));
+      setCounts((prev) => {
+        const next = { ...prev };
+        // decrement previous status if present
+        const prevStatus = (activeClaim.status || "").toLowerCase();
+        if (prevStatus && prevStatus in next) {
+          // @ts-ignore
+          next[prevStatus] = Math.max(0, (next as any)[prevStatus] - 1);
         }
-        // success: refresh list
-        await fetchVideoReviews();
-        resetForm();
-        alert("Video review created.");
-      } else {
-        // UPDATE (PUT)
-        const res = await fetch(`${BASE}/api/reviews/video-reviews/update/${editingId}/`, {
-          method: "PUT",
-          headers: {
-            Authorization: token,
-          },
-          body: form,
-        });
-        if (!res.ok) {
-          const txt = await res.text().catch(() => "");
-          throw new Error(`Update failed: ${res.status} ${txt}`);
+        // increment new status
+        if (resolveStatus in next) {
+          // @ts-ignore
+          next[resolveStatus] = (next as any)[resolveStatus] + 1;
         }
-        await fetchVideoReviews();
-        resetForm();
-        alert("Video review updated.");
-      }
-    } catch (err: any) {
-      console.error(err);
-      alert(err?.message || "Failed to save video review.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const removeReview = async (id: number) => {
-    if (!confirm("Delete this video review? This action cannot be undone.")) return;
-    try {
-      const res = await fetch(`${BASE}/api/reviews/video-reviews/delete/${id}/`, {
-        method: "DELETE",
-        headers: { Authorization: getToken() },
+        return next;
       });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`Delete failed: ${res.status} ${txt}`);
-      }
-      // remove from UI
-      setVideoReviews((s) => s.filter((r) => r.id !== id));
-      alert("Deleted.");
-    } catch (err: any) {
+
+      closeModal();
+    } catch (err) {
       console.error(err);
-      alert(err?.message || "Failed to delete.");
+      toast.error("Failed to update claim");
+    } finally {
+      setResolving(false);
     }
   };
 
-  const formatDate = (d?: string) => {
-    if (!d) return "-";
-    try {
-      return new Date(d).toLocaleString();
-    } catch {
-      return d;
-    }
-  };
-
-  const getFileIcon = (type: string) => {
-    switch (type) {
-      case "image":
-        return <ImageIcon className="h-5 w-5" />;
-      case "video":
-        return <Video className="h-5 w-5" />;
-      case "document":
-        return <FileText className="h-5 w-5" />;
-      default:
-        return <FileText className="h-5 w-5" />;
-    }
-  };
-
-  const getFileTypeColor = (type: string) => {
-    switch (type) {
-      case "image":
-        return "bg-blue-100 text-blue-800";
-      case "video":
-        return "bg-purple-100 text-purple-800";
-      case "document":
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
+  const renderBadge = (status?: string | null) => {
+    const s = (status || "").toLowerCase();
+    if (s === "approved") return <Badge className="bg-green-50 text-green-800">{status}</Badge>;
+    if (s === "pending") return <Badge className="bg-yellow-50 text-yellow-800">{status}</Badge>;
+    if (s === "rejected") return <Badge className="bg-red-50 text-red-800">{status}</Badge>;
+    return <Badge className="bg-gray-50 text-gray-800">{status || "unknown"}</Badge>;
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Media Management</h1>
-          <p className="text-gray-600 mt-1">Upload and manage media files</p>
+          <h1 className="text-2xl font-bold">False Claims — Admin</h1>
+          <p className="text-sm text-gray-600">Review and resolve reported false claims</p>
         </div>
-        <Button className="bg-gradient-to-r from-[#FF6B9D] to-[#FF5A8C] hover:from-[#FF5A8C] hover:to-[#FF4979] shadow-lg hover:shadow-xl transition-all duration-300">
-          <Upload className="mr-2 h-4 w-4" />
-          Upload Files
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => fetchClaims(statusFilter === "all" ? null : statusFilter)}>Refresh</Button>
+        </div>
       </div>
 
-      {/* Storage overview + upload area omitted for brevity - keep your existing UI here */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-gray-50 p-3 rounded">
+              <p className="text-xs text-gray-500">All</p>
+              <p className="text-xl font-bold">{counts.all}</p>
+            </div>
+            <div className="bg-yellow-50 p-3 rounded">
+              <p className="text-xs text-yellow-600">Pending</p>
+              <p className="text-xl font-bold">{counts.pending}</p>
+            </div>
+            <div className="bg-green-50 p-3 rounded">
+              <p className="text-xs text-green-600">Approved</p>
+              <p className="text-xl font-bold">{counts.approved}</p>
+            </div>
+            <div className="bg-red-50 p-3 rounded">
+              <p className="text-xs text-red-600">Rejected</p>
+              <p className="text-xl font-bold">{counts.rejected}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      <Tabs defaultValue="all" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="all">All Files</TabsTrigger>
-          <TabsTrigger value="images">Images</TabsTrigger>
-          <TabsTrigger value="videos">Videos</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-        </TabsList>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between w-full gap-4">
+            <div className="flex items-center gap-3">
+              <Input
+                placeholder="Search claims..."
+                className="w-64"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value as any); setPage(1); }}
+                className="px-2 py-1 rounded border"
+              >
+                <option value="all">All</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="py-8 text-center">Loading claims…</div>
+          ) : error ? (
+            <div className="py-4 text-red-600">{error}</div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Claim ID</TableHead>
+                      <TableHead>Claimant</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Reason</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginated.map((c) => (
+                      <TableRow key={c.id} className="hover:bg-gray-50">
+                        <TableCell>{c.id}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">{c.lead_first_name || "-"}</div>
+                          <div className="text-xs text-gray-500">{c.lead_last_name}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-xs">{c.lead_phone ?? "-"}</div>
+                          {/* <div className="text-xs text-gray-500">{c.lead_email ?? "-"}</div> */}
+                        </TableCell>
+<TableCell className="max-w-md break-words text-sm">
+  <div>{c.reason ?? c.details ?? "-"}</div>
+  {Array.isArray(c.proof_documents) && c.proof_documents.length > 0 && (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {c.proof_documents.map((doc: any) =>
+        doc.file_type === "image" ? (
+          <a key={doc.id} href={doc.file_url} target="_blank" rel="noopener noreferrer">
+            <img
+              src={doc.file_url}
+              alt={doc.file_name}
+              className="w-16 h-16 object-cover rounded border"
+            />
+          </a>
+        ) : (
+          <a
+            key={doc.id}
+            href={doc.file_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-600 underline"
+          >
+            {doc.file_name}
+          </a>
+        )
+      )}
+    </div>
+  )}
+</TableCell>
+                        <TableCell>{c.created_at ? new Date(c.created_at).toISOString().split("T")[0] : "-"}</TableCell>
+                        <TableCell>{renderBadge(c.status)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button size="sm" onClick={() => openResolveModal(c)}>Resolve</Button>
+                          </div>
+                        </TableCell>
+                        
+                      </TableRow>
+                    ))}
 
-        <TabsContent value="all">
-          {/* ... existing media library grid ... */}
-        </TabsContent>
-
-        <TabsContent value="images">
-          <Card>
-            <CardContent className="p-6">
-              <p>Image files will be displayed here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="videos">
-          <Card className="mb-4">
-            <CardHeader className="pb-2">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <CardTitle>Video Reviews</CardTitle>
-                <div className="flex gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-                    <Input placeholder="Search reviews..." className="pl-8 w-64" onChange={() => {}} />
-                  </div>
-                  <Button variant="outline" size="icon">
-                    <Filter className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent>
-              {/* Create / Edit form */}
-              <form onSubmit={createOrUpdate} className="space-y-3 mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <Input placeholder="Client name *" value={clientName} onChange={(e) => setClientName(e.target.value)} />
-                  <Input placeholder="Used service *" value={usedService} onChange={(e) => setUsedService(e.target.value)} />
-                  <Input placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
-                </div>
-
-                <div>
-                  <textarea
-                    required
-                    placeholder="Comment *"
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    className="w-full p-2 border rounded"
-                    rows={3}
-                  />
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <input ref={fileRef} type="file" accept="video/*" />
-                  <div className="flex gap-2 ml-auto">
-                    {editingId && (
-                      <Button variant="outline" onClick={() => resetForm()}>
-                        Cancel
-                      </Button>
+                    {paginated.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-8 text-center text-gray-500">No claims found</TableCell>
+                      </TableRow>
                     )}
-                    <Button type="submit" disabled={submitting}>
-                      {editingId ? (submitting ? "Updating..." : "Update Review") : submitting ? "Creating..." : "Create Review"}
-                    </Button>
-                  </div>
-                </div>
-              </form>
+                  </TableBody>
+                </Table>
+              </div>
 
-              {/* List of video reviews */}
-              {loadingReviews ? (
-                <div>Loading reviews...</div>
-              ) : reviewsError ? (
-                <div className="text-red-600">{reviewsError}</div>
-              ) : (
-                <div className="grid grid-cols-1 gap-4">
-                  {videoReviews.length === 0 && <div className="text-gray-500">No video reviews yet.</div>}
-                  {videoReviews.map((r) => (
-                    <Card key={r.id} className="hover:shadow-md transition-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex gap-4 items-start">
-                          <div className="w-40">
-                            {r.video ? (
-                              // lightweight player fallback to link
-                              <div className="aspect-video bg-black rounded overflow-hidden">
-                                <video controls className="w-full h-full object-cover">
-                                  <source src={r.video} />
-                                  Your browser does not support the video tag.
-                                </video>
-                              </div>
-                            ) : (
-                              <div className="aspect-video bg-gray-100 rounded flex items-center justify-center">
-                                <Video className="h-8 w-8 text-gray-500" />
-                              </div>
-                            )}
-                          </div>
+              <div className="flex items-center justify-end space-x-2 py-4">
+                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>Previous</Button>
+                <div className="px-3 py-2 rounded bg-[#FF6B9D] text-white">{page}</div>
+                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages}>Next</Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-                          <div className="flex-1">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <div className="font-medium text-sm">{r.client_name}</div>
-                                <div className="text-xs text-gray-500">{r.used_service} • {r.location || "-"}</div>
-                                <div className="text-sm mt-2">{r.comment}</div>
-                              </div>
+      {/* --- Simple modal for resolve --- */}
+      {modalOpen && activeClaim && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={closeModal} />
+          <div className="relative max-w-xl w-full bg-white rounded shadow p-4">
+            <h3 className="text-lg font-semibold mb-2">Resolve Claim #{activeClaim.id}</h3>
+            <p className="text-sm text-gray-600 mb-4">Reported by: {activeClaim.claimant_name ?? "-"} — {activeClaim.claimant_phone ?? activeClaim.claimant_email ?? "-"}</p>
 
-                              <div className="flex flex-col items-end gap-2">
-                                <div className="text-xs text-gray-500">{formatDate(r.created_at)}</div>
-                                <div className="flex gap-2">
-                                  <Button size="sm" variant="outline" onClick={() => populateFormForEdit(r)}>
-                                    <Edit className="h-3.5 w-3.5 mr-1" /> Edit
-                                  </Button>
-                                  <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50" onClick={() => removeReview(r.id)}>
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
+            <div className="space-y-2">
+              <div>
+                <label className="block text-sm mb-1">Action</label>
+                <select value={resolveStatus} onChange={(e) => setResolveStatus(e.target.value as any)} className="w-full p-2 rounded border">
+                  <option value="approved">Approve</option>
+                  <option value="rejected">Reject</option>
+                </select>
+              </div>
 
-                            {r.video && (
-                              <div className="mt-3">
-                                <a href={r.video} target="_blank" rel="noreferrer" className="text-sm text-indigo-600 underline">
-                                  Open video in a new tab
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+              <div>
+                <label className="block text-sm mb-1">Admin note (optional)</label>
+                <textarea value={adminNote} onChange={(e) => setAdminNote(e.target.value)} rows={4} className="w-full p-2 rounded border" />
+              </div>
 
-        <TabsContent value="documents">
-          <Card>
-            <CardContent className="p-6">
-              <p>Document files will be displayed here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              <div className="flex justify-end gap-2 mt-3">
+                <Button variant="ghost" onClick={closeModal}>Cancel</Button>
+                <Button onClick={resolveClaim} disabled={resolving}>{resolving ? "Saving..." : "Save"}</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

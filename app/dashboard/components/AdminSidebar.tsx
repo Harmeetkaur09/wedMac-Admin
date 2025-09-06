@@ -45,7 +45,7 @@ const sidebarItems = [
     subItems: [
       { title: "Lead List", href: "/dashboard/leads" },
       { title: "Distribution Rules", href: "/dashboard/leads/distribution" },
-      // { title: "Status Tracking", href: "/dashboard/leads/status" },
+      { title: "Bulk Lead", href: "/dashboard/leads/bulk" },
     ],
   },
   {
@@ -75,7 +75,7 @@ const sidebarItems = [
     subItems: [
       // { title: "WYSIWYG Editor", href: "/dashboard/content/editor" },
       // { title: "Page Editing", href: "/dashboard/content/pages" },
-      // { title: "Media Library", href: "/dashboard/content/media" },
+      { title: "Reported Leads", href: "/dashboard/content/media" },
       { title: "Blog Management", href: "/dashboard/content/blog" },
     ],
   },
@@ -90,11 +90,11 @@ const sidebarItems = [
   //     { title: "Financial Reports", href: "/dashboard/reports/financial" },
   //   ],
   // },
-  {
-    title: "Settings",
-    href: "/dashboard/settings",
-    icon: <Settings className="h-5 w-5" />,
-  },
+  // {
+  //   title: "Settings",
+  //   href: "/dashboard/settings",
+  //   icon: <Settings className="h-5 w-5" />,
+  // },
 ]
 
 export default function AdminSidebar() {
@@ -203,15 +203,7 @@ export default function AdminSidebar() {
 
       {/* User Section */}
       <div className="p-4 border-t border-gray-100">
-        <div className="flex items-center space-x-3 p-3 rounded-xl bg-gray-50 mb-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-[#FF6B9D] to-[#FF5A8C] rounded-full flex items-center justify-center text-white text-sm font-bold">
-            {user?.name?.charAt(0)}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-            <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-          </div>
-        </div>
+      
         <Button
           onClick={logout}
           variant="outline"
