@@ -25,6 +25,7 @@ import {
 import { toast } from "react-hot-toast";
 
 type Artist = {
+  my_claimed_leads: string;
   tag?: string;
   id: number;
   user_phone?: string;
@@ -350,6 +351,7 @@ export default function ArtistListPage() {
           payment_status: null,
           status: json.status || "pending",
           internal_notes: null,
+          my_claimed_leads: json.my_claimed_leads || null,
           profile_picture: json.profile_picture ? { file_url: json.profile_picture } : null,
           certifications: json.certifications || [],
           created_at: json.created_at || new Date().toISOString(),
@@ -480,7 +482,7 @@ export default function ArtistListPage() {
                       <TableHead>Join date</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Tag</TableHead>
-                      <TableHead>Available Leads</TableHead>
+                      <TableHead>Claimed Lead</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -500,7 +502,7 @@ export default function ArtistListPage() {
                         <TableCell>{new Date(artist.created_at ?? "-").toISOString().split("T")[0]}</TableCell>
                         <TableCell>{artist.user_phone ?? "-"}</TableCell>
                         <TableCell>{artist.tag ?? "-"}</TableCell>
-                        <TableCell>{typeof artist.available_leads !== "undefined" ? String(artist.available_leads) : "-"}</TableCell>
+                        <TableCell>{artist.my_claimed_leads ?? "-"}</TableCell>
                         <TableCell>{renderBadge(artist.status)}</TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
@@ -511,8 +513,7 @@ export default function ArtistListPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => alert("View profile: " + artist.id)}>View Profile</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => alert("Edit: " + artist.id)}>Edit Details</DropdownMenuItem>
+                          
                               <DropdownMenuSeparator />
 
                               <DropdownMenuItem
