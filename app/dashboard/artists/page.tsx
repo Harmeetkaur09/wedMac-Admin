@@ -390,6 +390,92 @@ export default function ArtistListPage() {
       setCreateLoading(false);
     }
   };
+  // add this function near postArtistTag / toggleArtistStatus
+const adjustArtistLeads = async (artistId: number, action: "add" | "remove") => {
+  // ask amount from user (fallback 1)
+  const raw = window.prompt(`Enter amount to ${action} (numeric):`, "1");
+  if (raw === null) return; // user cancelled
+  const amount = Number(raw);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    toast.error("Invalid amount");
+    return;
+  }
+
+  setActionLoading((p) => ({ ...p, [artistId]: true }));
+  try {
+    const tokenFromStorage =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem("accessToken")
+        : null;
+    const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
+
+    const endpoint = `${API_HOST}/api/admin/artist/${artistId}/leads/`;
+
+    const res = await fetch(endpoint, {
+      method: "PATCH",
+      headers: {
+        ...(token ? { Authorization: token } : {}),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        action,
+        amount,
+      }),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`;
+      toast.error(msg);
+      return;
+    }
+
+    // If server returned updated counts, use them. Try multiple likely keys.
+    const maybeNum = (obj: any, keys: string[]) => {
+      for (const k of keys) {
+        if (obj && Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== null && obj[k] !== undefined) {
+          const n = Number(obj[k]);
+          if (Number.isFinite(n)) return n;
+        }
+      }
+      return null;
+    };
+
+    const updatedCount =
+      maybeNum(json, ["available_leads", "my_claimed_leads", "available_leads_count", "leads_available"]) ?? null;
+
+    if (updatedCount !== null) {
+      // update using returned value
+      setArtists((prev) =>
+        prev.map((a) => (a.id === artistId ? { ...a, available_leads: updatedCount } : a))
+      );
+    } else {
+      // fallback: locally adjust available_leads if present, else my_claimed_leads
+      setArtists((prev) =>
+        prev.map((a) => {
+          if (a.id !== artistId) return a;
+          const cur = typeof a.available_leads === "number" ? a.available_leads : (typeof a.my_claimed_leads === "number" ? Number(a.my_claimed_leads) : 0);
+          const newVal = Math.max(0, cur + (action === "add" ? amount : -amount));
+          return {
+            ...a,
+            // prefer available_leads update; keep my_claimed_leads untouched unless you want it updated too
+            available_leads: newVal,
+            my_claimed_leads: (a.my_claimed_leads !== undefined) ? String(newVal) : a.my_claimed_leads,
+          };
+        })
+      );
+    }
+
+    toast.success(`Successfully ${action === "add" ? "added" : "removed"} ${amount} lead(s)`);
+  } catch (err) {
+    console.error("Adjust leads failed:", err);
+    toast.error("Failed to adjust leads");
+  } finally {
+    setActionLoading((p) => ({ ...p, [artistId]: false }));
+  }
+};
+
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -537,6 +623,20 @@ export default function ArtistListPage() {
                               >
                                 {actionLoading[artist.id] ? "Processing..." : "Remove Tag"}
                               </DropdownMenuItem>
+<DropdownMenuItem
+  onClick={() => adjustArtistLeads(artist.id, "add")}
+  disabled={!!actionLoading[artist.id]}
+>
+  {actionLoading[artist.id] ? "Processing..." : "+1 Leads"}
+</DropdownMenuItem>
+
+<DropdownMenuItem
+  onClick={() => adjustArtistLeads(artist.id, "remove")}
+  disabled={!!actionLoading[artist.id]}
+  className="text-red-600"
+>
+  {actionLoading[artist.id] ? "Processing..." : "-1 Leads"}
+</DropdownMenuItem>
 
                               {/* Activate / Deactivate action depending on current status */}
                               {((artist.status || "").toLowerCase() === "active" || (artist.status || "").toLowerCase() === "approved") ? (
@@ -553,6 +653,7 @@ export default function ArtistListPage() {
                                 >
                                   {actionLoading[artist.id] ? "Processing..." : "Activate"}
                                 </DropdownMenuItem>
+                                
                               )}
                             </DropdownMenuContent>
                           </DropdownMenu>

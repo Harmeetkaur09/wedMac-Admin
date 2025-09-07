@@ -66,7 +66,7 @@ const sidebarItems = [
     href: "/admin/content",
     icon: <FileText className="h-5 w-5" />,
     subItems: [
-      // { title: "Page Editing", href: "/admin/content/pages" },
+      { title: "Artist Comments", href: "/admin/content/pages" },
       { title: "Reported Leads", href: "/admin/content/media" },
       { title: "Blog Management", href: "/admin/content/blog" },
     ],

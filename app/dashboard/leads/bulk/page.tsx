@@ -96,12 +96,13 @@ export default function LeadBulkUploaderpage() {
             val = Number.isFinite(n) ? n : val;
           }
           // handle comma separated makeup_types
-          if (key === "makeup_types" && val !== "") {
-            if (typeof val === "string") {
-              const arr = val.split(/[,;|]/).map((s) => s.trim()).filter(Boolean).map(Number).filter((x) => !Number.isNaN(x));
-              val = arr;
-            }
-          }
+        if (key === "makeup_types" && val !== "") {
+  if (typeof val === "string") {
+    const arr = val.split(/[,;|]/).map((s) => s.trim()).filter(Boolean);
+    val = arr;
+  }
+}
+
 
           // normalize date to YYYY-MM-DD if possible
           if (key === "booking_date" && val) {

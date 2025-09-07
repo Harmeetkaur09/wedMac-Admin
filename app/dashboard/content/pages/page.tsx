@@ -1,281 +1,346 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Filter, Search, Plus, Edit, Eye, Trash2, Copy } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Filter, Search, MoreHorizontal, Edit, Info } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
-export default function PagesManagementPage() {
-  const pages = [
-    {
-      id: 1,
-      title: "Home Page",
-      slug: "home",
-      status: "published",
-      template: "landing",
-      lastModified: "2023-06-10",
-      author: "Admin",
-      views: 15420,
-    },
-    {
-      id: 2,
-      title: "About Us",
-      slug: "about-us",
-      status: "published",
-      template: "default",
-      lastModified: "2023-06-10",
-      author: "Admin",
-      views: 3240,
-    },
-    {
-      id: 3,
-      title: "Services",
-      slug: "services",
-      status: "published",
-      template: "default",
-      lastModified: "2023-06-09",
-      author: "Admin",
-      views: 5680,
-    },
-    {
-      id: 4,
-      title: "Privacy Policy",
-      slug: "privacy-policy",
-      status: "published",
-      template: "default",
-      lastModified: "2023-06-08",
-      author: "Admin",
-      views: 890,
-    },
-    {
-      id: 5,
-      title: "Terms of Service",
-      slug: "terms-of-service",
-      status: "draft",
-      template: "default",
-      lastModified: "2023-06-05",
-      author: "Admin",
-      views: 0,
-    },
-    {
-      id: 6,
-      title: "Contact Us",
-      slug: "contact",
-      status: "published",
-      template: "contact",
-      lastModified: "2023-06-03",
-      author: "Admin",
-      views: 2340,
-    },
-    {
-      id: 7,
-      title: "FAQ",
-      slug: "faq",
-      status: "published",
-      template: "default",
-      lastModified: "2023-06-03",
-      author: "Admin",
-      views: 1560,
-    },
-    {
-      id: 8,
-      title: "Pricing",
-      slug: "pricing",
-      status: "archived",
-      template: "default",
-      lastModified: "2023-05-28",
-      author: "Admin",
-      views: 4320,
-    },
-  ]
+type Comment = {
+  id: number;
+  artist_id: number;
+  artist_name: string;
+  name: string;
+  phone_number: string;
+  location: string;
+  comment: string;
+  rating: number;
+  created_at: string;
+};
+
+type Artist = {
+  id: number;
+  first_name: string;
+  last_name: string;
+};
+
+export default function ArtistCommentsPage() {
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [selectedArtist, setSelectedArtist] = useState<number | null>(null);
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingComment, setEditingComment] = useState<Comment | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    phone_number: "",
+    location: "",
+    comment: "",
+    rating: 1,
+  });
+
+  const token = sessionStorage.getItem("accessToken");
+
+  // Fetch approved artists
+  useEffect(() => {
+    async function fetchArtists() {
+      try {
+        const res = await fetch(
+          "https://api.wedmacindia.com/api/admin/artists/?Status=approved",
+          {
+            headers: { "Content-Type": "application/json", ...(token && { Authorization: `Bearer ${token}` }) },
+          }
+        );
+        const data = await res.json();
+        setArtists(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    fetchArtists();
+  }, [token]);
+
+  // Fetch comments
+  useEffect(() => {
+    async function fetchComments() {
+      setLoading(true);
+      setError(null);
+      try {
+        const url = selectedArtist
+          ? `https://api.wedmacindia.com/api/artist-comments/admin/comments/${selectedArtist}/`
+          : "https://api.wedmacindia.com/api/artist-comments/admin/comments/";
+
+        const res = await fetch(url, {
+          headers: { "Content-Type": "application/json", ...(token && { Authorization: `Bearer ${token}` }) },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setComments(Array.isArray(data) ? data : []);
+      } catch (err: any) {
+        setError(err.message || "Failed to fetch comments");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchComments();
+  }, [selectedArtist, token]);
+
+  const filtered = useMemo(() => {
+    if (!query) return comments;
+    const q = query.toLowerCase();
+    return comments.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.phone_number.toLowerCase().includes(q) ||
+        c.comment.toLowerCase().includes(q)
+    );
+  }, [comments, query]);
+
+  function formatDate(iso?: string) {
+    if (!iso) return "-";
+    return new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+  }
+
+  // Delete
+async function deleteComment(id: number) {
+  if (!confirm("Are you sure you want to delete this comment?")) return;
+  try {
+    const res = await fetch(
+      `https://api.wedmacindia.com/api/artist-comments/admin/delete-comment/${id}/`,
+      { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    setComments((prev) => prev.filter((c) => c.id !== id));
+    alert("Comment deleted successfully!"); // Success message
+  } catch {
+    alert("Failed to delete comment");
+  }
+}
+
+  // Open edit dialog
+  function openEdit(comment: Comment) {
+    setEditingComment(comment);
+    setEditForm({
+      name: comment.name,
+      phone_number: comment.phone_number,
+      location: comment.location,
+      comment: comment.comment,
+      rating: comment.rating,
+    });
+    setEditDialogOpen(true);
+  }
+
+  // Submit update
+ async function submitEdit() {
+  if (!editingComment) return;
+  try {
+    const res = await fetch(
+      `https://api.wedmacindia.com/api/artist-comments/admin/update-comment/${editingComment.id}/`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(editForm),
+      }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const updated = await res.json();
+    setComments((prev) =>
+      prev.map((c) => (c.id === editingComment.id ? { ...c, ...editForm } : c))
+    );
+    setEditDialogOpen(false);
+    alert("Comment updated successfully!"); // Success message
+  } catch {
+    alert("Failed to update comment");
+  }
+}
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Pages Management</h1>
-          <p className="text-gray-600 mt-1">Manage all website pages and content</p>
-        </div>
-        <Button className="bg-gradient-to-r from-[#FF6B9D] to-[#FF5A8C] hover:from-[#FF5A8C] hover:to-[#FF4979] shadow-lg hover:shadow-xl transition-all duration-300">
-          <Plus className="mr-2 h-4 w-4" />
-          Create New Page
-        </Button>
-      </div>
-
       <Card className="mb-6">
-        <CardHeader className="pb-2">
-          <CardTitle>Pages Overview</CardTitle>
+        <CardHeader>
+          <CardTitle>Artist Comments Overview</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm text-blue-600 font-medium">Total Pages</p>
-              <p className="text-2xl font-bold">8</p>
-              <p className="text-xs text-gray-500">All pages</p>
+              <p className="text-sm text-blue-600 font-medium">Total Comments</p>
+              <p className="text-2xl font-bold">{comments.length}</p>
             </div>
             <div className="bg-green-50 p-4 rounded-lg">
-              <p className="text-sm text-green-600 font-medium">Published</p>
-              <p className="text-2xl font-bold">6</p>
-              <p className="text-xs text-gray-500">75% of total</p>
-            </div>
-            <div className="bg-yellow-50 p-4 rounded-lg">
-              <p className="text-sm text-yellow-600 font-medium">Draft</p>
-              <p className="text-2xl font-bold">1</p>
-              <p className="text-xs text-gray-500">12.5% of total</p>
-            </div>
-            <div className="bg-red-50 p-4 rounded-lg">
-              <p className="text-sm text-red-600 font-medium">Archived</p>
-              <p className="text-2xl font-bold">1</p>
-              <p className="text-xs text-gray-500">12.5% of total</p>
+              <p className="text-sm text-green-600 font-medium">Artists</p>
+              <p className="text-2xl font-bold">{artists.length}</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="all" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="all">All Pages</TabsTrigger>
-          <TabsTrigger value="published">Published</TabsTrigger>
-          <TabsTrigger value="draft">Draft</TabsTrigger>
-          <TabsTrigger value="archived">Archived</TabsTrigger>
-        </TabsList>
-        <TabsContent value="all">
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <CardTitle>All Pages</CardTitle>
-                <div className="flex gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-                    <Input placeholder="Search pages..." className="pl-8 w-64" />
-                  </div>
-                  <Button variant="outline" size="icon">
-                    <Filter className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Title</TableHead>
-                      <TableHead>URL</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Template</TableHead>
-                      <TableHead>Views</TableHead>
-                      <TableHead>Last Modified</TableHead>
-                      <TableHead>Author</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+      <Card>
+        <CardHeader className="pb-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <CardTitle>Comments</CardTitle>
+          <div className="flex gap-2 items-center">
+            <select
+              className="border px-2 py-1 rounded"
+              value={selectedArtist ?? ""}
+              onChange={(e) => setSelectedArtist(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">All Artists</option>
+              {artists.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.first_name} {a.last_name}
+                </option>
+              ))}
+            </select>
+
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search name / phone / comment..."
+                className="pl-8 w-64"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+            <Button variant="outline" size="icon">
+              <Filter className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          <div className="overflow-x-auto">
+            {loading ? (
+              <div className="p-6 text-center text-gray-500">Loading...</div>
+            ) : error ? (
+              <div className="p-6 text-center text-red-500">Error: {error}</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-6 text-center text-gray-500">No comments found.</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Artist</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Comment</TableHead>
+                    <TableHead>Rating</TableHead>
+                    <TableHead>Created At</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((c) => (
+                    <TableRow key={c.id} className="hover:bg-gray-50 transition-colors">
+                      <TableCell>{c.artist_name}</TableCell>
+                      <TableCell>{c.name}</TableCell>
+                      <TableCell>{c.phone_number}</TableCell>
+                      <TableCell>
+             <div className="relative group flex items-center gap-1">
+  <span className="truncate max-w-[28ch]">{c.comment}</span>
+  <Info className="h-4 w-4 text-gray-400" />
+  <div className="absolute top-full mb-1 hidden group-hover:block bg-gray-700 text-white text-xs rounded px-2 py-1 z-10 w-max max-w-xs">
+    {c.comment}
+  </div>
+</div>
+</TableCell>
+
+                      <TableCell>
+                        <Badge variant="secondary">{c.rating}</Badge>
+                      </TableCell>
+                      <TableCell>{formatDate(c.created_at)}</TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => openEdit(c)}>
+                              <Edit className="mr-2 h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => deleteComment(c.id)}>
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pages.map((page) => (
-                      <TableRow key={page.id} className="hover:bg-gray-50 transition-colors">
-                        <TableCell className="font-medium">{page.title}</TableCell>
-                        <TableCell className="text-sm text-gray-600">/{page.slug}</TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              page.status === "published"
-                                ? "bg-green-100 text-green-800"
-                                : page.status === "draft"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : "bg-red-100 text-red-800"
-                            }
-                          >
-                            {page.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm capitalize">{page.template}</TableCell>
-                        <TableCell className="text-sm">{page.views.toLocaleString()}</TableCell>
-                        <TableCell className="text-sm">{page.lastModified}</TableCell>
-                        <TableCell className="text-sm">{page.author}</TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                Actions
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Page Actions</DropdownMenuLabel>
-                              <DropdownMenuItem>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit Page
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Page
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Copy className="h-4 w-4 mr-2" />
-                                Duplicate
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem>Change Status</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-red-500">
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete Page
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="flex items-center justify-end space-x-2 py-4">
-                <Button variant="outline" size="sm">
-                  Previous
-                </Button>
-                <Button variant="outline" size="sm" className="bg-[#FF6B9D] text-white hover:bg-[#FF5A8C]">
-                  1
-                </Button>
-                <Button variant="outline" size="sm">
-                  2
-                </Button>
-                <Button variant="outline" size="sm">
-                  Next
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="published">
-          <Card>
-            <CardContent className="p-6">
-              <p>Published pages will be displayed here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="draft">
-          <Card>
-            <CardContent className="p-6">
-              <p>Draft pages will be displayed here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="archived">
-          <Card>
-            <CardContent className="p-6">
-              <p>Archived pages will be displayed here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Comment</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <Input
+              placeholder="Name"
+              value={editForm.name}
+              onChange={(e) => setEditForm((s) => ({ ...s, name: e.target.value }))}
+            />
+            <Input
+              placeholder="Phone Number"
+              value={editForm.phone_number}
+              onChange={(e) => setEditForm((s) => ({ ...s, phone_number: e.target.value }))}
+            />
+            <Input
+              placeholder="Location"
+              value={editForm.location}
+              onChange={(e) => setEditForm((s) => ({ ...s, location: e.target.value }))}
+            />
+            <Input
+              placeholder="Comment"
+              value={editForm.comment}
+              onChange={(e) => setEditForm((s) => ({ ...s, comment: e.target.value }))}
+            />
+            <Input
+              type="number"
+              min={1}
+              max={5}
+              placeholder="Rating"
+              value={editForm.rating}
+              onChange={(e) => setEditForm((s) => ({ ...s, rating: Number(e.target.value) }))}
+            />
+          </div>
+          <DialogFooter className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitEdit}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  )
+  );
 }

@@ -74,7 +74,7 @@ const sidebarItems = [
     icon: <FileText className="h-5 w-5" />,
     subItems: [
       // { title: "WYSIWYG Editor", href: "/dashboard/content/editor" },
-      // { title: "Page Editing", href: "/dashboard/content/pages" },
+      { title: "Artist Comments", href: "/dashboard/content/pages" },
       { title: "Reported Leads", href: "/dashboard/content/media" },
       { title: "Blog Management", href: "/dashboard/content/blog" },
     ],

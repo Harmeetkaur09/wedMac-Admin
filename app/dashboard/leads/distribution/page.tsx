@@ -227,7 +227,7 @@ export default function LeadDistributionWithToggle() {
     }
 
     if (!Number.isFinite(maxClaimLead) || maxClaimLead < 1) {
-      toast.error("Please provide a valid Max Claim Lead (>= 1)");
+      toast.error("Please provide a valid Capping Lead (>= 1)");
       return;
     }
 
@@ -509,7 +509,7 @@ export default function LeadDistributionWithToggle() {
           {/* NEW: show max_claim_lead input only for roundrobin mode */}
           {mode === "roundrobin" && (
             <div className="w-48">
-              <label className="block text-sm mb-1">Max claim lead</label>
+              <label className="block text-sm mb-1">Capping</label>
               <Input
                 type="number"
                 min={1}
@@ -518,7 +518,7 @@ export default function LeadDistributionWithToggle() {
                   const v = Number(e.target.value);
                   setMaxClaimLead(Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1);
                 }}
-                aria-label="Max claim lead for round robin"
+                aria-label="Capping lead for round robin"
                 placeholder="1"
               />
               <p className="text-xs text-gray-500 mt-1">How many artists can claim this lead (round-robin)</p>

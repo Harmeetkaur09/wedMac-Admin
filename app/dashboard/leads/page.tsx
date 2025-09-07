@@ -11,6 +11,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -26,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type RawLead = Record<string, any>;
 type Artist = {
+  phone?: string;
   id: number | string;
   name: string;
 };
@@ -201,10 +211,15 @@ const fetchArtists = async () => {
       ? data
       : data.results ?? data.data ?? [];
 
-    const mapped = items.map((a: any) => ({
-      id: a.id ?? a.pk ?? a._id,
-      name: a.name ?? `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim(),
-    }));
+  const mapped = items.map((a: any) => ({
+  id: a.id ?? a.pk ?? a._id,
+  name:
+    a.name && a.name.trim()
+      ? a.name
+      : `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim() || "Unnamed",
+  phone: a.phone ?? a.contact_no ?? a.mobile ?? "-",
+}));
+
 
     setArtists(mapped);
   } catch (err) {
@@ -290,7 +305,7 @@ useEffect(() => {
       });
       if (!resp.ok) {
         const txt = await resp.text();
-        throw new Error(`Set max claims failed: ${resp.status} ${txt}`);
+        throw new Error(`Set capping failed: ${resp.status} ${txt}`);
       }
       const data = await resp.json().catch(() => null);
       return data ?? { max_claims: maxClaims };
@@ -384,7 +399,7 @@ useEffect(() => {
   const handleSetMaxClaims = async (lead: Lead) => {
     try {
       const input = window.prompt(
-        `Set max claims for ${lead.name} (enter integer, e.g. 5):`,
+        `Set capping for ${lead.name} (enter integer, e.g. 5):`,
         String(lead.maxClaims ?? lead.raw?.max_claims ?? "")
       );
       if (input === null) return;
@@ -401,10 +416,10 @@ useEffect(() => {
           return mapToLead(newRaw);
         })
       );
-      window.alert("Max claims updated.");
+      window.alert("Capping updated.");
     } catch (err: any) {
       console.error(err);
-      window.alert("Failed to set max claims: " + (err?.message ?? err));
+      window.alert("Failed to set capping: " + (err?.message ?? err));
     }
   };
 
@@ -617,7 +632,7 @@ useEffect(() => {
                         <TableHead>Service</TableHead>
                         <TableHead>Location</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Max Claims</TableHead>
+                        <TableHead>Capping</TableHead>
                         <TableHead>Claimed</TableHead>
                         <TableHead>Budget</TableHead>
                         <TableHead>Assign To</TableHead>
@@ -671,25 +686,21 @@ useEffect(() => {
                                 >
                                   Edit Lead
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => handleChangeStatus(lead)}
-                                >
-                                  Change Status
-                                </DropdownMenuItem>
+                               
                              <DropdownMenuItem onClick={() => handleAssignTo(lead)}>
   Assign To
 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => handleSetMaxClaims(lead)}
                                 >
-                                  Set Max Claims
+                                  Set Capping
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   className="text-red-500"
                                   onClick={() => handleSoftDelete(lead)}
                                 >
-                                  Soft Delete Lead
+                                   Delete
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -760,19 +771,31 @@ useEffect(() => {
       {loadingArtists ? (
         <p>Loading artists...</p>
       ) : (
-       <select
-  value={selectedArtist}
-  onChange={(e) => setSelectedArtist(e.target.value)}
-  className="w-full border rounded px-3 py-2"
+       
+<Command className="border rounded-md">
+  <CommandInput placeholder="Search artist..." />
+  <CommandList>
+    <CommandEmpty>No artist found.</CommandEmpty>
+    <CommandGroup>
+      {artists.map((a) => (
+     <CommandItem
+  key={String(a.id)}
+  value={`${a.id} ${a.name} ${a.phone}`}
+  onSelect={() => setSelectedArtist(String(a.id))}
+  className={`cursor-pointer ${
+    selectedArtist === String(a.id)
+      ? "bg-[#FF6B9D] text-white" // highlighted style
+      : ""
+  }`}
 >
-  <option value="">-- Select Artist --</option>
-  {artists.map((a) => (
-    <option key={String(a.id)} value={String(a.id)}>
-      {a.name}
-    </option>
-  ))}
-</select>
-      )}
+  {a.name || "Unnamed"} — {a.phone || "-"}
+</CommandItem>
+
+
+      ))}
+    </CommandGroup>
+  </CommandList>
+</Command>      )}
 
       <div className="flex justify-end gap-2 mt-4">
         <Button variant="outline" onClick={() => setAssigningLead(null)}>
@@ -799,7 +822,7 @@ useEffect(() => {
       // update UI locally: attach assigned_to info (attempt to use artist details)
       const artistInfo = artists.find((a) => String(a.id) === String(artistId));
       const assignedObj = artistInfo
-        ? { id: artistId, first_name: artistInfo.name }
+        ? { id: artistId, first_name: artistInfo.name, phone: artistInfo.phone }
         : { id: artistId };
 
       setLeads((prev) =>
