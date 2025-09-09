@@ -37,7 +37,7 @@ type Artist = {
   date_of_birth?: string | null;
   location?: string | null;
   payment_status?: string | null;
-  status?: string | null; // e.g. pending, approved, inactive
+  status?: string | null;
   internal_notes?: string | null;
   profile_picture?: {
     file_url?: string | null;
@@ -57,11 +57,18 @@ export default function ArtistListPage() {
   const perPage = 8;
   const [statusFilter, setStatusFilter] = useState<"all" | string>("all");
 
-  // per-artist action loading state
-  const [actionLoading, setActionLoading] = useState<Record<number, boolean>>(
-    {}
-  );
+  const [actionLoading, setActionLoading] = useState<Record<number, boolean>>({});
 
+  const API_HOST = "https://api.wedmacindia.com";
+
+  // New: subscription plans
+  const [plans, setPlans] = useState<any[]>([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+const [formErrors, setFormErrors] = useState<{ first_name?: string; last_name?: string; phone?: string }>({});
+const isAlpha = (s: string) => /^[A-Za-z\s]+$/.test(s.trim());
+const sanitizeAlpha = (s: string) => s.replace(/[^A-Za-z\s]/g, "");
+const sanitizePhone = (s: string) => s.replace(/\D/g, "").slice(0, 10);
+const isPhoneValid = (s: string) => /^\d{10}$/.test(s);
   // Add Artist modal state + form
   const [addOpen, setAddOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -76,11 +83,95 @@ export default function ArtistListPage() {
     pincode: "",
     lat: "",
     lng: "",
-    available_leads: 0,
+    // subscription_plan_id will hold the selected plan's id (string GUID)
+    subscription_plan_id: "",
   });
 
-  // POST tag to artist (add or remove). If tag is empty string, server will remove tag.
-  const API_HOST = "https://api.wedmacindia.com";
+// inside your component (e.g., near toggleArtistStatus / postArtistTag functions)
+
+const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
+  if (!artistPhone) {
+    toast.error("Artist phone not available");
+    return;
+  }
+
+  // 1) open blank tab synchronously to avoid popup blockers
+  const newWin = typeof window !== "undefined"
+    ? window.open("", "_blank")
+    : null;
+
+  if (typeof window !== "undefined" && !newWin) {
+    toast.error("Popup blocked. Please allow popups for this site.");
+    return;
+  }
+
+  setActionLoading((p) => ({ ...p, [artistId ?? -1]: true }));
+  try {
+    const endpoint = `${API_HOST}/api/users/admin/login-as-artist/`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(typeof window !== "undefined" && sessionStorage.getItem("accessToken")
+          ? { Authorization: `Bearer ${sessionStorage.getItem("accessToken")}` }
+          : {}),
+      },
+      body: JSON.stringify({ phone: String(artistPhone) }),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`;
+      toast.error(msg);
+      // close the blank tab if opened
+      if (newWin && !newWin.closed) newWin.close();
+      return;
+    }
+
+    const access = json?.access;
+    const refresh = json?.refresh;
+    const userId = json?.user_id ?? null;
+
+    if (!access) {
+      toast.error("Login-as-artist did not return access token");
+      if (newWin && !newWin.closed) newWin.close();
+      return;
+    }
+
+    // Optional: keep a copy on admin origin (not required for new tab)
+ 
+    toast.success(json?.message || "Logged in as artist");
+
+    // build artist URL + fragment (fragment won't be sent to server)
+    const artistProfileUrl = "https://wedmac-artist.vercel.app/"; // change if you want /profile
+    const frag = `#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
+
+    // navigate the previously opened tab to the final URL
+    if (newWin && !newWin.closed) {
+      try {
+        newWin.location.href = `${artistProfileUrl}${frag}`;
+        // for security, you can also remove reference (optional)
+        // newWin.opener = null;
+      } catch (e) {
+        // setting location might fail in some strict environments; fallback: open new URL
+        window.open(`${artistProfileUrl}${frag}`, "_blank", "noopener,noreferrer");
+        if (!newWin.closed) newWin.close();
+      }
+    } else {
+      // fallback: open normally (might be blocked)
+      window.open(`${artistProfileUrl}${frag}`, "_blank", "noopener,noreferrer");
+    }
+  } catch (err) {
+    console.error("Login-as-artist failed:", err);
+    toast.error("Failed to login as artist");
+    if (newWin && !newWin.closed) newWin.close();
+  } finally {
+    setActionLoading((p) => ({ ...p, [artistId ?? -1]: false }));
+  }
+};
+
+
 
   const postArtistTag = async (artistId: number, tag: string) => {
     setActionLoading((p) => ({ ...p, [artistId]: true }));
@@ -91,7 +182,6 @@ export default function ArtistListPage() {
           : null;
       const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
 
-      // endpoint: /api/artists/admin/<id>/tag/
       const endpoint = `${API_HOST}/api/artists/admin/${artistId}/tag/`;
 
       const res = await fetch(endpoint, {
@@ -113,7 +203,6 @@ export default function ArtistListPage() {
       if (tag && tag.trim()) toast.success(`Tag "${tag}" applied`);
       else toast.success("Tag removed");
 
-      // refresh list so UI can reflect tag changes
       fetchArtists();
     } catch (err) {
       console.error("Tag update failed:", err);
@@ -151,16 +240,10 @@ export default function ArtistListPage() {
 
       const data: any = await res.json();
 
-      // sometimes API returns an object with a results key — handle both shapes
       let list: Artist[] = [];
       if (Array.isArray(data)) {
         list = data;
-      } else if (
-        data &&
-        typeof data === "object" &&
-        "results" in data &&
-        Array.isArray(data.results)
-      ) {
+      } else if (data && typeof data === "object" && "results" in data && Array.isArray(data.results)) {
         list = data.results;
       }
 
@@ -173,12 +256,50 @@ export default function ArtistListPage() {
     }
   };
 
+  // New: fetch subscription plans
+  const fetchPlans = async () => {
+    setPlansLoading(true);
+    try {
+      const tokenFromStorage =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem("accessToken")
+          : null;
+      const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
+
+      const url = `${API_HOST}/api/admin/master/list/?type=subscriptions_plan`;
+      const res = await fetch(url, {
+        headers: {
+          ...(token ? { Authorization: token } : {}),
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        console.warn("Failed to fetch plans:", res.status, txt);
+        setPlans([]);
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+      // handle array or { results: [...] } shapes
+      const list = Array.isArray(data) ? data : (data && Array.isArray(data.results) ? data.results : []);
+      setPlans(list);
+    } catch (err) {
+      console.error("Plans fetch error:", err);
+      setPlans([]);
+    } finally {
+      setPlansLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchArtists();
+    fetchPlans();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Derived counts for overview
   const counts = useMemo(() => {
     const c = { active: 0, pending: 0, inactive: 0, totalBookings: 0 } as any;
     for (const a of artists) {
@@ -191,7 +312,6 @@ export default function ArtistListPage() {
     return c;
   }, [artists]);
 
-  // Filter + search
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return artists.filter((a) => {
@@ -230,7 +350,6 @@ export default function ArtistListPage() {
     return <Badge className="bg-gray-100 text-gray-800">{status || "unknown"}</Badge>;
   };
 
-  // Toggle activation endpoint POSTs (activate/deactivate)
   const toggleArtistStatus = async (artistId: number, activate: boolean) => {
     const confirmMsg = activate
       ? "Are you sure you want to ACTIVATE this artist?"
@@ -263,7 +382,6 @@ export default function ArtistListPage() {
         return;
       }
 
-      // success: update local list so UI reflects change without full refetch
       setArtists((prev) =>
         prev.map((a) => {
           if (a.id !== artistId) return a;
@@ -283,13 +401,32 @@ export default function ArtistListPage() {
     }
   };
 
-  // Create artist (admin)
+  // Create artist (admin) - modified to send subscription_plan_id
   const createArtist = async () => {
-    // Basic validation
-    if (!newArtist.first_name || !newArtist.phone) {
-      toast.error("Please provide first name and phone");
-      return;
-    }
+   // Basic required checks
+  const fn = (newArtist.first_name || "").trim();
+  const ln = (newArtist.last_name || "").trim();
+  const phone = (newArtist.phone || "").trim();
+
+  const errors: typeof formErrors = {};
+
+  if (!fn) errors.first_name = "First name is required";
+  else if (!isAlpha(fn)) errors.first_name = "Name must contain only letters and spaces";
+
+  // last name optional but if provided must be alphabetic
+  if (ln && !isAlpha(ln)) errors.last_name = "Last name must contain only letters and spaces";
+
+  if (!phone) errors.phone = "Phone is required";
+  else if (!isPhoneValid(phone)) errors.phone = "Phone must be exactly 10 digits";
+
+  if (Object.keys(errors).length > 0) {
+    setFormErrors(errors);
+    // show first error as toast too
+    const firstError = errors.first_name || errors.last_name || errors.phone;
+    toast.error(firstError || "Unknown error");
+    return;
+  }
+
 
     setCreateLoading(true);
     try {
@@ -308,10 +445,11 @@ export default function ArtistListPage() {
         city: newArtist.city || null,
         state: newArtist.state || null,
         pincode: newArtist.pincode || null,
-        available_leads:
-          typeof newArtist.available_leads !== "undefined"
-            ? Number(newArtist.available_leads)
-            : 0,
+        // Instead of available_leads, include subscription_plan_id (or null)
+        subscription_plan_id:
+          newArtist.subscription_plan_id && newArtist.subscription_plan_id !== ""
+            ? String(newArtist.subscription_plan_id)
+            : null,
       };
 
       if (newArtist.lat) payload.lat = Number(newArtist.lat);
@@ -336,7 +474,6 @@ export default function ArtistListPage() {
 
       toast.success("Artist created");
 
-      // If API returns the created artist, add it to list; otherwise refetch
       if (json && (json.id || json.user_id)) {
         const created: Artist = {
           id: json.id || json.user_id,
@@ -357,14 +494,14 @@ export default function ArtistListPage() {
           created_at: json.created_at || new Date().toISOString(),
           my_referral_code: json.my_referral_code || null,
           tag: "",
+          // server may return available_leads; fallback to 0 if not provided
           available_leads:
             typeof json.available_leads !== "undefined"
               ? Number(json.available_leads)
-              : Number(payload.available_leads || 0),
+              : 0,
         };
         setArtists((p) => [created, ...p]);
       } else {
-        // fallback: refetch list
         fetchArtists();
       }
 
@@ -380,7 +517,7 @@ export default function ArtistListPage() {
         pincode: "",
         lat: "",
         lng: "",
-        available_leads: 0,
+        subscription_plan_id: "",
       });
       setAddOpen(false);
     } catch (err) {
@@ -390,92 +527,87 @@ export default function ArtistListPage() {
       setCreateLoading(false);
     }
   };
-  // add this function near postArtistTag / toggleArtistStatus
-const adjustArtistLeads = async (artistId: number, action: "add" | "remove") => {
-  // ask amount from user (fallback 1)
-  const raw = window.prompt(`Enter amount to ${action} (numeric):`, "1");
-  if (raw === null) return; // user cancelled
-  const amount = Number(raw);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    toast.error("Invalid amount");
-    return;
-  }
 
-  setActionLoading((p) => ({ ...p, [artistId]: true }));
-  try {
-    const tokenFromStorage =
-      typeof window !== "undefined"
-        ? sessionStorage.getItem("accessToken")
-        : null;
-    const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
-
-    const endpoint = `${API_HOST}/api/admin/artist/${artistId}/leads/`;
-
-    const res = await fetch(endpoint, {
-      method: "PATCH",
-      headers: {
-        ...(token ? { Authorization: token } : {}),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        action,
-        amount,
-      }),
-    });
-
-    const json = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`;
-      toast.error(msg);
+  // ... (keep adjustArtistLeads and other helpers as-is if needed)
+  const adjustArtistLeads = async (artistId: number, action: "add" | "remove") => {
+    const raw = window.prompt(`Enter amount to ${action} (numeric):`, "1");
+    if (raw === null) return;
+    const amount = Number(raw);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Invalid amount");
       return;
     }
 
-    // If server returned updated counts, use them. Try multiple likely keys.
-    const maybeNum = (obj: any, keys: string[]) => {
-      for (const k of keys) {
-        if (obj && Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== null && obj[k] !== undefined) {
-          const n = Number(obj[k]);
-          if (Number.isFinite(n)) return n;
-        }
+    setActionLoading((p) => ({ ...p, [artistId]: true }));
+    try {
+      const tokenFromStorage =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem("accessToken")
+          : null;
+      const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
+
+      const endpoint = `${API_HOST}/api/admin/artist/${artistId}/leads/`;
+
+      const res = await fetch(endpoint, {
+        method: "PATCH",
+        headers: {
+          ...(token ? { Authorization: token } : {}),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action,
+          amount,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`;
+        toast.error(msg);
+        return;
       }
-      return null;
-    };
 
-    const updatedCount =
-      maybeNum(json, ["available_leads", "my_claimed_leads", "available_leads_count", "leads_available"]) ?? null;
+      const maybeNum = (obj: any, keys: string[]) => {
+        for (const k of keys) {
+          if (obj && Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== null && obj[k] !== undefined) {
+            const n = Number(obj[k]);
+            if (Number.isFinite(n)) return n;
+          }
+        }
+        return null;
+      };
 
-    if (updatedCount !== null) {
-      // update using returned value
-      setArtists((prev) =>
-        prev.map((a) => (a.id === artistId ? { ...a, available_leads: updatedCount } : a))
-      );
-    } else {
-      // fallback: locally adjust available_leads if present, else my_claimed_leads
-      setArtists((prev) =>
-        prev.map((a) => {
-          if (a.id !== artistId) return a;
-          const cur = typeof a.available_leads === "number" ? a.available_leads : (typeof a.my_claimed_leads === "number" ? Number(a.my_claimed_leads) : 0);
-          const newVal = Math.max(0, cur + (action === "add" ? amount : -amount));
-          return {
-            ...a,
-            // prefer available_leads update; keep my_claimed_leads untouched unless you want it updated too
-            available_leads: newVal,
-            my_claimed_leads: (a.my_claimed_leads !== undefined) ? String(newVal) : a.my_claimed_leads,
-          };
-        })
-      );
+      const updatedCount =
+        maybeNum(json, ["available_leads", "my_claimed_leads", "available_leads_count", "leads_available"]) ?? null;
+
+      if (updatedCount !== null) {
+        setArtists((prev) =>
+          prev.map((a) => (a.id === artistId ? { ...a, available_leads: updatedCount } : a))
+        );
+      } else {
+        setArtists((prev) =>
+          prev.map((a) => {
+            if (a.id !== artistId) return a;
+            const cur = typeof a.available_leads === "number" ? a.available_leads : (typeof a.my_claimed_leads === "number" ? Number(a.my_claimed_leads) : 0);
+            const newVal = Math.max(0, cur + (action === "add" ? amount : -amount));
+            return {
+              ...a,
+              available_leads: newVal,
+              my_claimed_leads: (a.my_claimed_leads !== undefined) ? String(newVal) : a.my_claimed_leads,
+            };
+          })
+        );
+      }
+
+      toast.success(`Successfully ${action === "add" ? "added" : "removed"} ${amount} lead(s)`);
+    } catch (err) {
+      console.error("Adjust leads failed:", err);
+      toast.error("Failed to adjust leads");
+    } finally {
+      setActionLoading((p) => ({ ...p, [artistId]: false }));
     }
-
-    toast.success(`Successfully ${action === "add" ? "added" : "removed"} ${amount} lead(s)`);
-  } catch (err) {
-    console.error("Adjust leads failed:", err);
-    toast.error("Failed to adjust leads");
-  } finally {
-    setActionLoading((p) => ({ ...p, [artistId]: false }));
-  }
-};
-
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -485,8 +617,7 @@ const adjustArtistLeads = async (artistId: number, action: "add" | "remove") => 
           <p className="text-gray-600 mt-1">Manage all makeup artists on your platform</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => fetchArtists()}>Refresh</Button>
-          <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={() => setAddOpen(true)}>Add Artist</Button>
+          <Button className="bg-[#FF6B9D] hover:bg-pink-500 text-white" onClick={() => setAddOpen(true)}>Add Artist</Button>
         </div>
       </div>
 
@@ -591,6 +722,8 @@ const adjustArtistLeads = async (artistId: number, action: "add" | "remove") => 
                         <TableCell>{artist.my_claimed_leads ?? "-"}</TableCell>
                         <TableCell>{renderBadge(artist.status)}</TableCell>
                         <TableCell className="text-right">
+
+
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon">
@@ -608,7 +741,12 @@ const adjustArtistLeads = async (artistId: number, action: "add" | "remove") => 
                               >
                                 {actionLoading[artist.id] ? "Processing..." : "Tag: Popular"}
                               </DropdownMenuItem>
-
+<DropdownMenuItem
+  onClick={() => loginAsArtist(artist.user_phone || artist.phone || `${artist.phone}` , artist.id)}
+  disabled={!!actionLoading[artist.id]}
+>
+  {actionLoading[artist.id] ? "Processing..." : "Login as Artist"}
+</DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => postArtistTag(artist.id, "top")}
                                 disabled={!!actionLoading[artist.id]}
@@ -623,22 +761,22 @@ const adjustArtistLeads = async (artistId: number, action: "add" | "remove") => 
                               >
                                 {actionLoading[artist.id] ? "Processing..." : "Remove Tag"}
                               </DropdownMenuItem>
-<DropdownMenuItem
-  onClick={() => adjustArtistLeads(artist.id, "add")}
-  disabled={!!actionLoading[artist.id]}
->
-  {actionLoading[artist.id] ? "Processing..." : "+1 Leads"}
-</DropdownMenuItem>
 
-<DropdownMenuItem
-  onClick={() => adjustArtistLeads(artist.id, "remove")}
-  disabled={!!actionLoading[artist.id]}
-  className="text-red-600"
->
-  {actionLoading[artist.id] ? "Processing..." : "-1 Leads"}
-</DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => adjustArtistLeads(artist.id, "add")}
+                                disabled={!!actionLoading[artist.id]}
+                              >
+                                {actionLoading[artist.id] ? "Processing..." : "+1 Leads"}
+                              </DropdownMenuItem>
 
-                              {/* Activate / Deactivate action depending on current status */}
+                              <DropdownMenuItem
+                                onClick={() => adjustArtistLeads(artist.id, "remove")}
+                                disabled={!!actionLoading[artist.id]}
+                                className="text-red-600"
+                              >
+                                {actionLoading[artist.id] ? "Processing..." : "-1 Leads"}
+                              </DropdownMenuItem>
+
                               {((artist.status || "").toLowerCase() === "active" || (artist.status || "").toLowerCase() === "approved") ? (
                                 <DropdownMenuItem
                                   onClick={() => toggleArtistStatus(artist.id, false)}
@@ -653,7 +791,6 @@ const adjustArtistLeads = async (artistId: number, action: "add" | "remove") => 
                                 >
                                   {actionLoading[artist.id] ? "Processing..." : "Activate"}
                                 </DropdownMenuItem>
-                                
                               )}
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -695,15 +832,79 @@ const adjustArtistLeads = async (artistId: number, action: "add" | "remove") => 
             <p className="text-sm text-gray-600 mb-4">Creates an artist without OTP</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Input placeholder="First name" value={newArtist.first_name} onChange={(e) => setNewArtist((p: any) => ({ ...p, first_name: e.target.value }))} />
-              <Input placeholder="Last name" value={newArtist.last_name} onChange={(e) => setNewArtist((p: any) => ({ ...p, last_name: e.target.value }))} />
-              <Input placeholder="Phone" value={newArtist.phone} onChange={(e) => setNewArtist((p: any) => ({ ...p, phone: e.target.value }))} />
+           <Input
+  placeholder="First name"
+  value={newArtist.first_name}
+  onChange={(e) => {
+    const val = sanitizeAlpha(e.target.value);
+    setNewArtist((p: any) => ({ ...p, first_name: val }));
+    setFormErrors((fe) => ({ ...fe, first_name: undefined }));
+  }}
+/>
+{formErrors.first_name && <p className="text-xs text-red-600 mt-1">{formErrors.first_name}</p>}
+
+<Input
+  placeholder="Last name"
+  value={newArtist.last_name}
+  onChange={(e) => {
+    const val = sanitizeAlpha(e.target.value);
+    setNewArtist((p: any) => ({ ...p, last_name: val }));
+    setFormErrors((fe) => ({ ...fe, last_name: undefined }));
+  }}
+/>
+{formErrors.last_name && <p className="text-xs text-red-600 mt-1">{formErrors.last_name}</p>}
+
+<Input
+  placeholder="Phone"
+  value={newArtist.phone}
+  inputMode="numeric"
+  maxLength={10}
+  onChange={(e) => {
+    const val = sanitizePhone(e.target.value);
+    setNewArtist((p: any) => ({ ...p, phone: val }));
+    setFormErrors((fe) => ({ ...fe, phone: undefined }));
+  }}
+/>
+{formErrors.phone && <p className="text-xs text-red-600 mt-1">{formErrors.phone}</p>}
               <Input placeholder="Email" value={newArtist.email} onChange={(e) => setNewArtist((p: any) => ({ ...p, email: e.target.value }))} />
-              <Input placeholder="Gender" value={newArtist.gender} onChange={(e) => setNewArtist((p: any) => ({ ...p, gender: e.target.value }))} />
+
+              {/* Gender dropdown */}
+              <div>
+                {/* <label className="block text-xs font-medium mb-1">Gender</label> */}
+                <select
+                  value={newArtist.gender ?? ""}
+                  onChange={(e) => setNewArtist((p: any) => ({ ...p, gender: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded"
+                >
+                  <option value="">Select gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
               <Input placeholder="City" value={newArtist.city} onChange={(e) => setNewArtist((p: any) => ({ ...p, city: e.target.value }))} />
               <Input placeholder="State" value={newArtist.state} onChange={(e) => setNewArtist((p: any) => ({ ...p, state: e.target.value }))} />
-              <Input placeholder="Available leads" type="number" value={newArtist.available_leads} onChange={(e) => setNewArtist((p: any) => ({ ...p, available_leads: Number(e.target.value) }))} />
+              {/* <Input placeholder="Pincode" value={newArtist.pincode} onChange={(e) => setNewArtist((p: any) => ({ ...p, pincode: e.target.value }))} /> */}
 
+              {/* Subscription plan select (shows name, sends id) */}
+              <div>
+                {/* <label className="block text-xs font-medium mb-1">Subscription Plan</label> */}
+                <select
+                  value={newArtist.subscription_plan_id ?? ""}
+                  onChange={(e) => setNewArtist((p: any) => ({ ...p, subscription_plan_id: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded"
+                >
+                  <option value="">{plansLoading ? "Loading plans..." : "Select a plan"}</option>
+                  {plans.map((pl: any) => (
+                    <option key={pl.id} value={pl.id}>
+                      {pl.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+         
             </div>
 
             <div className="flex justify-end gap-2 mt-4">

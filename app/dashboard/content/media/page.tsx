@@ -229,9 +229,7 @@ if (Array.isArray(json?.claims)) {
           <h1 className="text-2xl font-bold">False Claims — Admin</h1>
           <p className="text-sm text-gray-600">Review and resolve reported false claims</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => fetchClaims(statusFilter === "all" ? null : statusFilter)}>Refresh</Button>
-        </div>
+     
       </div>
 
       <Card>
