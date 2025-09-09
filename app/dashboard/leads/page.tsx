@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -41,6 +41,7 @@ type Artist = {
 };
 
 type Lead = {
+  booking_date: string;
   id: number | string;
   name: string;
   email?: string | null;
@@ -166,6 +167,7 @@ const budgetMax = parseNumber(
     budgetMax,
     assigned_to: raw.assigned_to ?? null,
     raw,
+    booking_date: raw.booking_date ? String(raw.booking_date).slice(0, 10) : "",
   };
 };
 
@@ -192,6 +194,7 @@ const [assigningLead, setAssigningLead] = useState<Lead | null>(null);
 const [selectedArtist, setSelectedArtist] = useState<string>("");
   // NEW: toggle to show/hide contacted books list
   const [showContactedBooks, setShowContactedBooks] = useState(false);
+const hasFetched = useRef(false);
 
 const fetchArtists = async () => {
   setLoadingArtists(true);
@@ -264,9 +267,12 @@ useEffect(() => {
     }
   };
 
-  useEffect(() => {
+useEffect(() => {
+  if (!hasFetched.current) {
     fetchLeads();
-  }, []);
+    hasFetched.current = true;
+  }
+}, []);
 
   // helper: generic PATCH/PUT to update lead (keep method as you had; adjust if needed)
   const patchLead = async (id: string | number, body: Record<string, any>) => {
@@ -636,7 +642,8 @@ useEffect(() => {
                         <TableHead>Claimed</TableHead>
                         <TableHead>Budget</TableHead>
                         <TableHead>Assign To</TableHead>
-                        <TableHead>Date</TableHead>
+                        <TableHead>Event Date</TableHead>
+                        <TableHead>Created Date</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -670,7 +677,7 @@ useEffect(() => {
 <TableCell>{lead.budgetMax ?? "-"}</TableCell>
 <TableCell>{lead.assigned_to?.first_name ?? "-"}</TableCell>
 
-
+<TableCell>{lead.booking_date ?? "-"}</TableCell>
                           <TableCell>{lead.date ?? "-"}</TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
