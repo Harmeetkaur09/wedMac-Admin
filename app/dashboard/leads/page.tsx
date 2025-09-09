@@ -197,7 +197,7 @@ const fetchArtists = async () => {
   setLoadingArtists(true);
   try {
     const resp = await fetch(
-      "https://api.wedmacindia.com/api/admin/artists/?Status=approved",
+      "https://api.wedmacindia.com/api/admin/artists/?status=approved",
       {
         headers: {
           "Content-Type": "application/json",

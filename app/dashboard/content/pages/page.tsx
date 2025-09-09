@@ -66,7 +66,7 @@ export default function ArtistCommentsPage() {
     async function fetchArtists() {
       try {
         const res = await fetch(
-          "https://api.wedmacindia.com/api/admin/artists/?Status=approved",
+          "https://api.wedmacindia.com/api/admin/artists/?status=approved",
           {
             headers: { "Content-Type": "application/json", ...(token && { Authorization: `Bearer ${token}` }) },
           }
