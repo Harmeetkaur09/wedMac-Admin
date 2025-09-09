@@ -735,18 +735,18 @@ const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
                           
                               <DropdownMenuSeparator />
 
-                              <DropdownMenuItem
-                                onClick={() => postArtistTag(artist.id, "popular")}
-                                disabled={!!actionLoading[artist.id]}
-                              >
-                                {actionLoading[artist.id] ? "Processing..." : "Tag: Popular"}
-                              </DropdownMenuItem>
 <DropdownMenuItem
   onClick={() => loginAsArtist(artist.user_phone || artist.phone || `${artist.phone}` , artist.id)}
   disabled={!!actionLoading[artist.id]}
 >
   {actionLoading[artist.id] ? "Processing..." : "Login as Artist"}
 </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => postArtistTag(artist.id, "popular")}
+                                disabled={!!actionLoading[artist.id]}
+                              >
+                                {actionLoading[artist.id] ? "Processing..." : "Tag: Popular"}
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => postArtistTag(artist.id, "top")}
                                 disabled={!!actionLoading[artist.id]}
@@ -777,21 +777,26 @@ const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
                                 {actionLoading[artist.id] ? "Processing..." : "-1 Leads"}
                               </DropdownMenuItem>
 
-                              {((artist.status || "").toLowerCase() === "active" || (artist.status || "").toLowerCase() === "approved") ? (
-                                <DropdownMenuItem
-                                  onClick={() => toggleArtistStatus(artist.id, false)}
-                                  disabled={!!actionLoading[artist.id]}
-                                >
-                                  {actionLoading[artist.id] ? "Processing..." : "Deactivate"}
-                                </DropdownMenuItem>
-                              ) : (
-                                <DropdownMenuItem
-                                  onClick={() => toggleArtistStatus(artist.id, true)}
-                                  disabled={!!actionLoading[artist.id]}
-                                >
-                                  {actionLoading[artist.id] ? "Processing..." : "Activate"}
-                                </DropdownMenuItem>
-                              )}
+                            {(artist.status || "").toLowerCase() === "approved" || (artist.status || "").toLowerCase() === "active" ? (
+  <>
+    { (artist.status || "").toLowerCase() === "active" ? (
+      <DropdownMenuItem
+        onClick={() => toggleArtistStatus(artist.id, false)}
+        disabled={!!actionLoading[artist.id]}
+      >
+        {actionLoading[artist.id] ? "Processing..." : "Deactivate"}
+      </DropdownMenuItem>
+    ) : (
+      <DropdownMenuItem
+        onClick={() => toggleArtistStatus(artist.id, true)}
+        disabled={!!actionLoading[artist.id]}
+      >
+        {actionLoading[artist.id] ? "Processing..." : "Activate"}
+      </DropdownMenuItem>
+    )}
+  </>
+) : null}
+
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
