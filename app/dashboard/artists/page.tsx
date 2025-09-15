@@ -96,103 +96,112 @@ export default function ArtistListPage() {
 
   // inside your component (e.g., near toggleArtistStatus / postArtistTag functions)
 
-  const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
-    if (!artistPhone) {
-      toast.error("Artist phone not available");
-      return;
-    }
+ const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
+  if (!artistPhone) {
+    toast.error("Artist phone not available");
+    return;
+  }
 
-    // 1) open blank tab synchronously to avoid popup blockers
-    const newWin =
-      typeof window !== "undefined" ? window.open("", "_blank") : null;
+  // 1) open blank tab synchronously to avoid popup blockers
+  const newWin =
+    typeof window !== "undefined" ? window.open("", "_blank") : null;
 
-    if (typeof window !== "undefined" && !newWin) {
-      toast.error("Popup blocked. Please allow popups for this site.");
-      return;
-    }
+  if (typeof window !== "undefined" && !newWin) {
+    toast.error("Popup blocked. Please allow popups for this site.");
+    return;
+  }
 
-    setActionLoading((p) => ({ ...p, [artistId ?? -1]: true }));
-    try {
-      const endpoint = `${API_HOST}/api/users/admin/login-as-artist/`;
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(typeof window !== "undefined" &&
-          sessionStorage.getItem("accessToken")
-            ? {
-                Authorization: `Bearer ${sessionStorage.getItem(
-                  "accessToken"
-                )}`,
-              }
-            : {}),
-        },
-        body: JSON.stringify({ phone: String(artistPhone) }),
-      });
+  setActionLoading((p) => ({ ...p, [artistId ?? -1]: true }));
+  try {
+    const endpoint = `${API_HOST}/api/users/admin/login-as-artist/`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(typeof window !== "undefined" &&
+        sessionStorage.getItem("accessToken")
+          ? {
+              Authorization: `Bearer ${sessionStorage.getItem(
+                "accessToken"
+              )}`,
+            }
+          : {}),
+      },
+      body: JSON.stringify({ phone: String(artistPhone) }),
+    });
 
-      const json = await res.json().catch(() => null);
+    const json = await res.json().catch(() => null);
 
-      if (!res.ok) {
-        const msg =
-          (json && (json.detail || json.message)) ||
-          `Request failed: ${res.status}`;
-        toast.error(msg);
-        // close the blank tab if opened
-        if (newWin && !newWin.closed) newWin.close();
-        return;
-      }
-
-      const access = json?.access;
-      const refresh = json?.refresh;
-      const userId = json?.user_id ?? null;
-
-      if (!access) {
-        toast.error("Login-as-artist did not return access token");
-        if (newWin && !newWin.closed) newWin.close();
-        return;
-      }
-
-      // Optional: keep a copy on admin origin (not required for new tab)
-
-      toast.success(json?.message || "Logged in as artist");
-
-      // build artist URL + fragment (fragment won't be sent to server)
-      const artistProfileUrl = "https://wedmac-artist.vercel.app/"; // change if you want /profile
-      const frag = `#access=${encodeURIComponent(access)}${
-        refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""
-      }${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
-
-      // navigate the previously opened tab to the final URL
-      if (newWin && !newWin.closed) {
-        try {
-          newWin.location.href = `${artistProfileUrl}${frag}`;
-          // for security, you can also remove reference (optional)
-          // newWin.opener = null;
-        } catch (e) {
-          // setting location might fail in some strict environments; fallback: open new URL
-          window.open(
-            `${artistProfileUrl}${frag}`,
-            "_blank",
-            "noopener,noreferrer"
-          );
-          if (!newWin.closed) newWin.close();
-        }
-      } else {
-        // fallback: open normally (might be blocked)
-        window.open(
-          `${artistProfileUrl}${frag}`,
-          "_blank",
-          "noopener,noreferrer"
-        );
-      }
-    } catch (err) {
-      console.error("Login-as-artist failed:", err);
-      toast.error("Failed to login as artist");
+    if (!res.ok) {
+      const msg =
+        (json && (json.detail || json.message)) ||
+        `Request failed: ${res.status}`;
+      toast.error(msg);
       if (newWin && !newWin.closed) newWin.close();
-    } finally {
-      setActionLoading((p) => ({ ...p, [artistId ?? -1]: false }));
+      return;
     }
-  };
+
+    const access = json?.access;
+    const refresh = json?.refresh;
+    const userId = json?.user_id ?? null;
+
+    if (!access) {
+      toast.error("Login-as-artist did not return access token");
+      if (newWin && !newWin.closed) newWin.close();
+      return;
+    }
+
+    toast.success(json?.message || "Logged in as artist");
+
+    // ---- NEW: postMessage approach to reliably deliver tokens ----
+    // Change these to your real origins
+    const artistOrigin = "https://wedmac-artist.vercel.app";
+    const adminOrigin = window.location.origin; // optional: used in artist for origin check
+    const receivePath = "/receive-token"; // make sure artist has this route
+
+    // navigate the previously opened blank tab to the receive-token page
+    try {
+      if (newWin && !newWin.closed) {
+        // set the url to the receive-token page (this is allowed since newWin was opened synchronously)
+        newWin.location.href = `${artistOrigin}${receivePath}`;
+        // Give the new window a moment to start loading, then postMessage (posting immediately is fine too)
+        const payload = { access, refresh, user_id: userId, from: adminOrigin };
+        // Try to postMessage; it won't throw if receiver not ready — message will simply be ignored if no listener
+        try {
+          newWin.postMessage(payload, artistOrigin);
+        } catch (e) {
+          // some browsers may restrict posting while navigating — fallback to fragment URL
+          console.warn("postMessage failed, falling back to fragment navigation", e);
+          newWin.location.href = `${artistOrigin}${receivePath}#access=${encodeURIComponent(
+            access
+          )}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${
+            userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""
+          }`;
+        }
+        // focus the new window
+        try { newWin.focus(); } catch (_) {}
+      } else {
+        // fallback: open new window directly (may be blocked)
+        const fallbackUrl = `${artistOrigin}${receivePath}#access=${encodeURIComponent(
+          access
+        )}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${
+          userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""
+        }`;
+        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      }
+    } catch (e) {
+      console.error("Failed to open artist window:", e);
+      if (newWin && !newWin.closed) newWin.close();
+    }
+  } catch (err) {
+    console.error("Login-as-artist failed:", err);
+    toast.error("Failed to login as artist");
+    if (newWin && !newWin.closed) newWin.close();
+  } finally {
+    setActionLoading((p) => ({ ...p, [artistId ?? -1]: false }));
+  }
+};
+
 
   const postArtistTag = async (artistId: number, tag: string) => {
     setActionLoading((p) => ({ ...p, [artistId]: true }));
