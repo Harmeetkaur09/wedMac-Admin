@@ -96,13 +96,12 @@ export default function ArtistListPage() {
 
   // inside your component (e.g., near toggleArtistStatus / postArtistTag functions)
 
- const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
+const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
   if (!artistPhone) {
     toast.error("Artist phone not available");
     return;
   }
 
-  // 1) open blank tab synchronously to avoid popup blockers
   const newWin =
     typeof window !== "undefined" ? window.open("", "_blank") : null;
 
@@ -121,9 +120,7 @@ export default function ArtistListPage() {
         ...(typeof window !== "undefined" &&
         sessionStorage.getItem("accessToken")
           ? {
-              Authorization: `Bearer ${sessionStorage.getItem(
-                "accessToken"
-              )}`,
+              Authorization: `Bearer ${sessionStorage.getItem("accessToken")}`,
             }
           : {}),
       },
@@ -153,46 +150,75 @@ export default function ArtistListPage() {
 
     toast.success(json?.message || "Logged in as artist");
 
-    // ---- NEW: postMessage approach to reliably deliver tokens ----
-    // Change these to your real origins
-    const artistOrigin = "https://wedmac-artist.vercel.app";
-    const adminOrigin = window.location.origin; // optional: used in artist for origin check
-    const receivePath = "/receive-token"; // make sure artist has this route
+    // ---- HANDSHAKE: open receive-token and wait for ready ----
+    const artistOrigin = "https://wedmac-artist.vercel.app"; // <-- change if needed
+    const receivePath = "/receive-token";
+    const receiveUrl = `${artistOrigin}${receivePath}`;
 
-    // navigate the previously opened blank tab to the receive-token page
+    // navigate the new window to receive-token page
     try {
       if (newWin && !newWin.closed) {
-        // set the url to the receive-token page (this is allowed since newWin was opened synchronously)
-        newWin.location.href = `${artistOrigin}${receivePath}`;
-        // Give the new window a moment to start loading, then postMessage (posting immediately is fine too)
-        const payload = { access, refresh, user_id: userId, from: adminOrigin };
-        // Try to postMessage; it won't throw if receiver not ready — message will simply be ignored if no listener
-        try {
-          newWin.postMessage(payload, artistOrigin);
-        } catch (e) {
-          // some browsers may restrict posting while navigating — fallback to fragment URL
-          console.warn("postMessage failed, falling back to fragment navigation", e);
-          newWin.location.href = `${artistOrigin}${receivePath}#access=${encodeURIComponent(
-            access
-          )}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${
-            userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""
-          }`;
-        }
-        // focus the new window
-        try { newWin.focus(); } catch (_) {}
+        newWin.location.href = receiveUrl;
       } else {
-        // fallback: open new window directly (may be blocked)
-        const fallbackUrl = `${artistOrigin}${receivePath}#access=${encodeURIComponent(
-          access
-        )}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${
-          userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""
-        }`;
-        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+        // fallback open
+        window.open(receiveUrl, "_blank", "noopener,noreferrer");
       }
     } catch (e) {
-      console.error("Failed to open artist window:", e);
-      if (newWin && !newWin.closed) newWin.close();
+      console.warn("Navigation to receive-token failed:", e);
     }
+
+    // one-time listener for 'receive-ready' from the artist window
+    const onMessage = (e: MessageEvent) => {
+      try {
+        // ensure it's coming from the artist origin
+        if (e.origin !== artistOrigin) return;
+        if (!e.data || e.data.type !== "receive-ready") return;
+        // send tokens
+        const payload = { access, refresh, user_id: userId };
+        try {
+          // postMessage to the child window
+          if (newWin && !newWin.closed) {
+            newWin.postMessage(payload, artistOrigin);
+            console.log("Sent tokens via postMessage to artist window");
+          }
+        } catch (err) {
+          console.warn("postMessage to child failed:", err);
+          // fallback to fragment navigation
+          const fallbackUrl = `${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
+          if (newWin && !newWin.closed) newWin.location.href = fallbackUrl;
+          else window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+        } finally {
+          window.removeEventListener("message", onMessage);
+        }
+      } catch (err) {
+        console.error("Error in onMessage handler:", err);
+      }
+    };
+
+    window.addEventListener("message", onMessage, false);
+
+    // Fallback: if no ready handshake arrives within 1500ms, attempt direct postMessage or fragment fallback
+    const fallbackTimer = setTimeout(() => {
+      try {
+        const payload = { access, refresh, user_id: userId };
+        try {
+          if (newWin && !newWin.closed) {
+            newWin.postMessage(payload, artistOrigin);
+            console.log("Fallback: attempted direct postMessage");
+          } else {
+            const fallbackUrl = `${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
+            window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+          }
+        } catch (err) {
+          console.warn("Fallback postMessage failed:", err);
+          const fallbackUrl = `${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
+          if (newWin && !newWin.closed) newWin.location.href = fallbackUrl;
+          else window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+        }
+      } finally {
+        window.removeEventListener("message", onMessage);
+      }
+    }, 1500);
   } catch (err) {
     console.error("Login-as-artist failed:", err);
     toast.error("Failed to login as artist");
@@ -201,6 +227,7 @@ export default function ArtistListPage() {
     setActionLoading((p) => ({ ...p, [artistId ?? -1]: false }));
   }
 };
+
 
 
   const postArtistTag = async (artistId: number, tag: string) => {
