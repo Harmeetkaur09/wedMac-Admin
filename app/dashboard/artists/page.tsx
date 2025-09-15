@@ -569,7 +569,7 @@ const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
         toast.error(msg);
         return;
       }
-
+window.location.reload();
       toast.success("Artist created");
 
       if (json && (json.id || json.user_id)) {
