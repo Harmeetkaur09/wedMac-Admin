@@ -30,8 +30,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { Filter, MoreHorizontal, Plus, Search } from "lucide-react";
+import { Calendar, Filter, MapPin, MoreHorizontal, Plus, Search } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "react-hot-toast";
 
 type RawLead = Record<string, any>;
 type Artist = {
@@ -41,6 +42,7 @@ type Artist = {
 };
 
 type Lead = {
+  event_type?: string;
   booking_date: string;
   id: number | string;
   name: string;
@@ -57,18 +59,18 @@ type Lead = {
     | "other";
   source?: string;
   date?: string;
-  // New fields:
   maxClaims?: number | null;
   claimedCount?: number | null;
-  budget?: number | null; 
-  budgetMax?: number | null; 
+  budget?: number | null;
+  budgetMax?: number | null;
   raw?: RawLead;
   assigned_to?: {
     id: number;
     first_name: string;
     last_name: string;
     phone: string;
-  } | null;};
+  } | null;
+};
 
 const API_URL = "https://api.wedmacindia.com/api/leads/list/";
 // base used for update endpoints (matches your examples)
@@ -138,25 +140,23 @@ const mapToLead = (raw: RawLead): Lead => {
     raw.status ?? raw.lead_status ?? raw.state ?? ""
   );
 
-  // New numeric fields (try multiple possible raw keys)
   const maxClaims = parseNumber(
     raw.max_claims ?? raw.maxClaims ?? raw.maxclaim ?? raw.max_claim
   );
   const claimedCount = parseNumber(
     raw.claimed_count ?? raw.claimedCount ?? raw.claims_count ?? raw.claims
   );
-const budget = parseNumber(raw.budget ?? raw.estimated_budget ?? raw.project_budget);
+  const budget = parseNumber(raw.budget ?? raw.estimated_budget ?? raw.project_budget);
 
-// agar budget_range hai to uska max_value nikaal lo
-const budgetMax = parseNumber(
-  raw.budget_range?.max_value ?? raw.max_budget ?? raw.budgetMax
-);
+  const budgetMax = parseNumber(
+    raw.budget_range?.max_value ?? raw.max_budget ?? raw.budgetMax
+  );
   return {
     id,
     name,
     email,
     phone,
-    service,
+    event_type: service, // <-- add this line
     location,
     status,
     source,
@@ -175,9 +175,8 @@ export default function LeadManagement() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-const [artists, setArtists] = useState<Artist[]>([]);
-const [loadingArtists, setLoadingArtists] = useState(false);
-  // FIXED: include "contacted" in union
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [loadingArtists, setLoadingArtists] = useState(false);
   const [activeTab, setActiveTab] = useState<
     | "all"
     | "new"
@@ -188,55 +187,63 @@ const [loadingArtists, setLoadingArtists] = useState(false);
     | "other"
   >("all");
 
-  // search + (we'll keep tabs + a dynamic status row that sets the same tab)
   const [search, setSearch] = useState("");
-const [assigningLead, setAssigningLead] = useState<Lead | null>(null);
-const [selectedArtist, setSelectedArtist] = useState<string>("");
-  // NEW: toggle to show/hide contacted books list
+  const [assigningLead, setAssigningLead] = useState<Lead | null>(null);
+  const [selectedArtist, setSelectedArtist] = useState<string>("");
   const [showContactedBooks, setShowContactedBooks] = useState(false);
-const hasFetched = useRef(false);
+  const hasFetched = useRef(false);
 
-const fetchArtists = async () => {
-  setLoadingArtists(true);
-  try {
-    const resp = await fetch(
-      "https://api.wedmacindia.com/api/admin/artists/?status=approved",
-      {
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeader(),
-        },
-      }
-    );
-    if (!resp.ok) throw new Error("Failed to fetch artists");
-    const data = await resp.json();
-    const items = Array.isArray(data)
-      ? data
-      : data.results ?? data.data ?? [];
+  // NEW: edit modal state
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [editForm, setEditForm] = useState<{
+    name?: string;
+    event_type?: string;
+    booking_date?: string;
+    location?: string;
+    phone?: string;
+    budget?: string;
+  }>({});
 
-  const mapped = items.map((a: any) => ({
-  id: a.id ?? a.pk ?? a._id,
-  name:
-    a.name && a.name.trim()
-      ? a.name
-      : `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim() || "Unnamed",
-  phone: a.phone ?? a.contact_no ?? a.mobile ?? "-",
-}));
+  const fetchArtists = async () => {
+    setLoadingArtists(true);
+    try {
+      const resp = await fetch(
+        "https://api.wedmacindia.com/api/admin/artists/?status=approved",
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeader(),
+          },
+        }
+      );
+      if (!resp.ok) throw new Error("Failed to fetch artists");
+      const data = await resp.json();
+      const items = Array.isArray(data)
+        ? data
+        : data.results ?? data.data ?? [];
 
+      const mapped = items.map((a: any) => ({
+        id: a.id ?? a.pk ?? a._id,
+        name:
+          a.name && a.name.trim()
+            ? a.name
+            : `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim() || "Unnamed",
+        phone: a.phone ?? a.contact_no ?? a.mobile ?? "-",
+      }));
 
-    setArtists(mapped);
-  } catch (err) {
-    console.error(err);
-    setArtists([]);
-  } finally {
-    setLoadingArtists(false);
-  }
-};
+      setArtists(mapped);
+    } catch (err) {
+      console.error(err);
+      setArtists([]);
+    } finally {
+      setLoadingArtists(false);
+    }
+  };
 
-useEffect(() => {
-  fetchArtists();
-}, []);
-  // fetch all leads once and on demand
+  useEffect(() => {
+    fetchArtists();
+  }, []);
+
   const fetchLeads = async () => {
     setLoading(true);
     setError(null);
@@ -267,14 +274,14 @@ useEffect(() => {
     }
   };
 
-useEffect(() => {
-  if (!hasFetched.current) {
-    fetchLeads();
-    hasFetched.current = true;
-  }
-}, []);
+  useEffect(() => {
+    if (!hasFetched.current) {
+      fetchLeads();
+      hasFetched.current = true;
+    }
+  }, []);
 
-  // helper: generic PATCH/PUT to update lead (keep method as you had; adjust if needed)
+  // helper: generic PUT to update lead (keeps existing behavior)
   const patchLead = async (id: string | number, body: Record<string, any>) => {
     const url = `${UPDATE_URL_BASE}/${id}/update/`;
     try {
@@ -290,6 +297,7 @@ useEffect(() => {
         const txt = await resp.text();
         throw new Error(`Update failed: ${resp.status} ${txt}`);
       }
+      window.location.reload();
       const data = await resp.json().catch(() => null);
       return data ?? body;
     } catch (err) {
@@ -320,36 +328,57 @@ useEffect(() => {
     }
   };
 
-  // Edit basic info (first_name, notes) via prompt
-  const handleEditLead = async (lead: Lead) => {
+  // ---------- NEW: open edit modal ----------
+  const openEditModal = (lead: Lead) => {
+    setEditingLead(lead);
+    setEditForm({
+      name: lead.name ?? "",
+      event_type: lead.event_type ?? "",
+      booking_date: lead.booking_date ?? lead.date ?? "",
+      location: lead.location ?? "",
+      phone: lead.phone ?? "",
+      budget: lead.budget != null ? String(lead.budget) : lead.budgetMax != null ? String(lead.budgetMax) : "",
+    });
+  };
+
+  // ---------- NEW: save edit modal ----------
+  const saveEditModal = async () => {
+    if (!editingLead) return;
+    const leadId = editingLead.id;
+    // build payload — only include fields you want to update (send nulls allowed)
+    const payload: Record<string, any> = {};
+    if (editForm.name !== undefined) payload.name = editForm.name;
+    if (editForm.event_type !== undefined) payload.event_type = editForm.event_type;
+    if (editForm.booking_date !== undefined) payload.booking_date = editForm.booking_date || null;
+    if (editForm.location !== undefined) payload.location = editForm.location;
+    if (editForm.phone !== undefined) payload.phone = editForm.phone;
+    // convert budget to number or null
+    payload.budget = editForm.budget !== undefined && editForm.budget !== "" ? parseNumber(editForm.budget) : null;
+
     try {
-      const firstName = window.prompt(
-        "Edit first_name:",
-        lead.raw?.first_name ?? lead.name ?? ""
-      );
-      if (firstName === null) return; // cancelled
-      const notes = window.prompt("Notes (optional):", lead.raw?.notes ?? "");
-      if (notes === null) return;
-
-      const payload: Record<string, any> = {};
-      payload.first_name = firstName;
-      if (notes) payload.notes = notes;
-
-      const updated = await patchLead(lead.id, payload);
+      const updated = await patchLead(leadId, payload);
 
       setLeads((prev) =>
         prev.map((p) => {
-          if (String(p.id) !== String(lead.id)) return p;
+          if (String(p.id) !== String(leadId)) return p;
           const newRaw = { ...(p.raw ?? {}), ...(updated ?? payload) };
           return mapToLead(newRaw);
         })
       );
-      window.alert("Lead updated successfully.");
-      window.location.reload();
+
+      toast.success("Lead updated");
+      setEditingLead(null);
+      setEditForm({});
     } catch (err: any) {
-      console.error(err);
-      window.alert("Failed to update lead: " + (err?.message ?? err));
+      console.error("Failed to update lead:", err);
+      toast.error("Failed to update lead: " + (err?.message ?? ""));
     }
+  };
+
+  // Edit basic info (deprecated prompt-based) - replaced by modal open
+  // kept for backward compatibility if some other code calls it
+  const handleEditLead = (lead: Lead) => {
+    openEditModal(lead);
   };
 
   // Change status via prompt
@@ -430,11 +459,11 @@ useEffect(() => {
   };
 
   // Assign to handler
- const handleAssignTo = (lead: Lead) => {
-  setAssigningLead(lead);
-  setSelectedArtist("");
-};
-  // FIXED: counts uses 'contacted' key
+  const handleAssignTo = (lead: Lead) => {
+    setAssigningLead(lead);
+    setSelectedArtist("");
+  };
+
   const counts = useMemo(() => {
     const c = {
       new: 0,
@@ -459,19 +488,16 @@ useEffect(() => {
     };
   }, [leads]);
 
-  // collect dynamic statuses present in leads (for above-table filters)
   const statusesPresent = useMemo(() => {
     const s = new Set<string>();
     for (const l of leads) s.add(l.status);
     return Array.from(s) as Lead["status"][];
   }, [leads]);
 
-  // compute list of contacted leads (books) — used in overview
   const contactedLeads = useMemo(() => {
     return leads.filter((l) => l.status === "contacted");
   }, [leads]);
 
-  // filtered list according to active tab and search
   const filteredLeads = useMemo(() => {
     const byTab =
       activeTab === "all" ? leads : leads.filter((l) => l.status === activeTab);
@@ -508,7 +534,6 @@ useEffect(() => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Lead Management</h1>
-       
       </div>
 
       <Card className="mb-6">
@@ -522,19 +547,15 @@ useEffect(() => {
               <p className="text-2xl font-bold">{counts.new}</p>
             </div>
 
-            {/* Claimed card with Books toggle */}
             <div className="bg-purple-50 p-4 rounded-lg relative">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm text-purple-600 font-medium">Claimed</p>
                   <p className="text-2xl font-bold">{counts.contacted}</p>
                 </div>
-                <div className="flex flex-col items-end gap-2">
-              
-                </div>
+                <div className="flex flex-col items-end gap-2"></div>
               </div>
 
-              {/* Books panel (contacted leads) */}
               {showContactedBooks && (
                 <div className="mt-3 bg-white border rounded-md p-3 shadow-sm max-h-48 overflow-auto">
                   {contactedLeads.length === 0 ? (
@@ -551,9 +572,7 @@ useEffect(() => {
                             size="icon"
                             variant="ghost"
                             onClick={() => {
-                              // focus table to that lead by switching tab and optionally scrolling
                               setActiveTab("contacted");
-                              // small delay to ensure table is updated then scroll to row (if present)
                               setTimeout(() => {
                                 const row = document.querySelector(`[data-lead-id="${c.id}"]`);
                                 if (row) (row as HTMLElement).scrollIntoView({ behavior: "smooth", block: "center" });
@@ -587,7 +606,6 @@ useEffect(() => {
         <TabsList>
           <TabsTrigger value="all">All Leads ({counts.total})</TabsTrigger>
           <TabsTrigger value="new">New ({counts.new})</TabsTrigger>
-          {/* SHOW CLAIMED using contacted count */}
           <TabsTrigger value="contacted">Claimed ({counts.contacted})</TabsTrigger>
         </TabsList>
 
@@ -636,13 +654,11 @@ useEffect(() => {
                         <TableHead>Name</TableHead>
                         <TableHead>Contact</TableHead>
                         <TableHead>Service</TableHead>
-                        <TableHead>Location</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Capping</TableHead>
                         <TableHead>Claimed</TableHead>
                         <TableHead>Budget</TableHead>
                         <TableHead>Assign To</TableHead>
-                        <TableHead>Event Date</TableHead>
                         <TableHead>Created Date</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -661,23 +677,29 @@ useEffect(() => {
                               </p>
                             </div>
                           </TableCell>
-                          <TableCell>{lead.service ?? "-"}</TableCell>
-                          <TableCell>
-                            {lead.location ?? String(lead.raw?.location ?? "-")}
-                          </TableCell>
+                          <TableCell> <div className="space-y-1">
+                              <div className="font-medium">{lead.event_type ?? "-"}</div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Calendar className="w-3 h-3" />
+                              {lead.booking_date ?? "-"}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <MapPin className="w-3 h-3" />
+                                {lead.location ?? "-"}
+                              </div>
+                            </div></TableCell>
+                    
                           <TableCell>
                             <Badge className={badgeClassForStatus(lead.status)}>
                               {lead.status}
                             </Badge>
                           </TableCell>
 
-                          {/* New columns */}
                           <TableCell>{lead.maxClaims ?? "-"}</TableCell>
                           <TableCell>{lead.claimedCount ?? "-"}</TableCell>
-<TableCell>{lead.budgetMax ?? "-"}</TableCell>
-<TableCell>{lead.assigned_to?.first_name ?? "-"}</TableCell>
+                          <TableCell>{lead.budget ?? lead.budgetMax ?? "-"}</TableCell>
+                          <TableCell>{lead.assigned_to?.first_name ?? "-"}</TableCell>
 
-<TableCell>{lead.booking_date ?? "-"}</TableCell>
                           <TableCell>{lead.date ?? "-"}</TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
@@ -689,14 +711,13 @@ useEffect(() => {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem
-                                  onClick={() => handleEditLead(lead)}
+                                  onClick={() => openEditModal(lead)}
                                 >
                                   Edit Lead
                                 </DropdownMenuItem>
-                               
-                             <DropdownMenuItem onClick={() => handleAssignTo(lead)}>
-  Assign To
-</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleAssignTo(lead)}>
+                                  Assign To
+                                </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => handleSetMaxClaims(lead)}
                                 >
@@ -718,49 +739,11 @@ useEffect(() => {
                   </Table>
 
                   <div className="flex items-center justify-end space-x-2 py-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        /* TODO: previous page */
-                      }}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="bg-[#FF6B9D] text-white hover:bg-[#FF5A8C]"
-                    >
-                      1
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        /* TODO: page 2 */
-                      }}
-                    >
-                      2
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        /* TODO: page 3 */
-                      }}
-                    >
-                      3
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        /* TODO: next page */
-                      }}
-                    >
-                      Next
-                    </Button>
+                    <Button variant="outline" size="sm">Previous</Button>
+                    <Button variant="outline" size="sm" className="bg-[#FF6B9D] text-white hover:bg-[#FF5A8C]">1</Button>
+                    <Button variant="outline" size="sm">2</Button>
+                    <Button variant="outline" size="sm">3</Button>
+                    <Button variant="outline" size="sm">Next</Button>
                   </div>
                 </>
               )}
@@ -768,6 +751,7 @@ useEffect(() => {
           </Card>
         </TabsContent>
       </Tabs>
+
       {assigningLead && (
   <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
     <div className="bg-white p-6 rounded-lg w-96">
@@ -791,14 +775,12 @@ useEffect(() => {
   onSelect={() => setSelectedArtist(String(a.id))}
   className={`cursor-pointer ${
     selectedArtist === String(a.id)
-      ? "bg-[#FF6B9D] text-white" // highlighted style
+      ? "bg-[#FF6B9D] text-white"
       : ""
   }`}
 >
   {a.name || "Unnamed"} — {a.phone || "-"}
 </CommandItem>
-
-
       ))}
     </CommandGroup>
   </CommandList>
@@ -813,8 +795,6 @@ useEffect(() => {
   disabled={!selectedArtist}
   onClick={async () => {
     if (!selectedArtist) return;
-
-    // convert to number and validate
     const artistId = Number(selectedArtist);
     if (!Number.isFinite(artistId)) {
       window.alert("Invalid artist selected. Please choose a valid artist.");
@@ -822,11 +802,9 @@ useEffect(() => {
     }
 
     try {
-      // send numeric id to API (most backends expect number)
       const payload = { assigned_to: artistId };
       const updated = await patchLead(assigningLead.id, payload);
 
-      // update UI locally: attach assigned_to info (attempt to use artist details)
       const artistInfo = artists.find((a) => String(a.id) === String(artistId));
       const assignedObj = artistInfo
         ? { id: artistId, first_name: artistInfo.name, phone: artistInfo.phone }
@@ -856,6 +834,81 @@ useEffect(() => {
   </div>
 )}
 
+      {/* ---------- EDIT LEAD MODAL ---------- */}
+      {editingLead && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg w-[520px]">
+            <h2 className="text-lg font-bold mb-3">Edit Lead</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Edit name, service, event date, location, phone and budget.
+            </p>
+
+            <div className="grid grid-cols-1 gap-3">
+              <label className="text-xs text-gray-600">Name</label>
+              <Input
+                value={editForm.name ?? ""}
+                onChange={(e) => setEditForm((s) => ({ ...s, name: e.target.value }))}
+                placeholder="Lead name"
+              />
+
+              <label className="text-xs text-gray-600">Event</label>
+              <Input
+                value={editForm.event_type ?? ""}
+                onChange={(e) => setEditForm((s) => ({ ...s, event_type: e.target.value }))}
+                placeholder="Event name"
+              />
+
+              <label className="text-xs text-gray-600">Event / Booking Date</label>
+              <Input
+                type="date"
+                value={editForm.booking_date ?? ""}
+                onChange={(e) => setEditForm((s) => ({ ...s, booking_date: e.target.value }))}
+              />
+
+              <label className="text-xs text-gray-600">Location</label>
+              <Input
+                value={editForm.location ?? ""}
+                onChange={(e) => setEditForm((s) => ({ ...s, location: e.target.value }))}
+                placeholder="Event location"
+              />
+
+              <label className="text-xs text-gray-600">Phone</label>
+              <Input
+                value={editForm.phone ?? ""}
+                onChange={(e) => setEditForm((s) => ({ ...s, phone: e.target.value }))}
+                placeholder="Phone number"
+                inputMode="tel"
+              />
+
+              <label className="text-xs text-gray-600">Budget</label>
+              <Input
+                value={editForm.budget ?? ""}
+                onChange={(e) => setEditForm((s) => ({ ...s, budget: e.target.value }))}
+                placeholder="Budget (numeric)"
+                inputMode="numeric"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setEditingLead(null);
+                  setEditForm({});
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-[#FF6B9D] text-white"
+                onClick={() => saveEditModal()}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

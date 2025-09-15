@@ -95,6 +95,155 @@ export default function ArtistListPage() {
   });
 
   // inside your component (e.g., near toggleArtistStatus / postArtistTag functions)
+// ---------- Add these state hooks near other useState declarations ----------
+const [planModalOpen, setPlanModalOpen] = useState(false);
+const [planModalArtistId, setPlanModalArtistId] = useState<number | null>(null);
+const [selectedPlanId, setSelectedPlanId] = useState<string>("");
+const [planActionLoading, setPlanActionLoading] = useState<Record<number, boolean>>({});
+
+// ---------- Helper to open modal ----------
+const openPlanModal = (artistId: number, currentPlanId?: string | null) => {
+  console.log("openPlanModal called:", { artistId, currentPlanId });
+  try { toast.success("Opening plan modal..."); } catch {}
+  setPlanModalArtistId(artistId);
+  setSelectedPlanId(currentPlanId ?? "");
+  setPlanModalOpen(true);
+};
+
+
+// ---------- POST assign plan ----------
+const setArtistPlan = async (artistId: number) => {
+  if (!artistId) return;
+  setPlanActionLoading((p) => ({ ...p, [artistId]: true }));
+  try {
+    const tokenFromStorage =
+      typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
+    const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
+
+    const endpoint = `${API_HOST}/api/artists/admin/${artistId}/set-current-plan/`;
+    const bodyPayload = { plan_id: selectedPlanId || null }; // send null if empty selection
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: token } : {}),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(bodyPayload),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`;
+      toast.error(msg);
+      return;
+    }
+
+    // Update local artist row if backend returned updated artist or plan info
+    if (json && (json.current_plan || json.available_leads || json.id)) {
+      setArtists((prev) =>
+        prev.map((a) => {
+          if (a.id !== artistId) return a;
+          return {
+            ...a,
+            // try to pick best available fields from response
+            available_leads:
+              typeof json.available_leads !== "undefined"
+                ? Number(json.available_leads)
+                : a.available_leads,
+            // attach current_plan if returned
+            // (keep it lightweight — depends on response shape)
+            ...(json.current_plan ? { current_plan: json.current_plan } : {}),
+          };
+        })
+      );
+    } else {
+      // fallback: refetch artists to pick up server state
+      fetchArtists();
+    }
+
+    toast.success("Plan updated for artist");
+    setPlanModalOpen(false);
+    setPlanModalArtistId(null);
+    setSelectedPlanId("");
+  } catch (err) {
+    console.error("Set plan failed:", err);
+    toast.error("Failed to set plan");
+  } finally {
+    setPlanActionLoading((p) => ({ ...p, [artistId]: false }));
+  }
+};
+
+// ---------- Update extended days (prompt + POST) ----------
+const updateExtendedDays = async (artistId: number) => {
+  const raw = window.prompt(
+    "Enter number of days to ADD to artist's extended days",
+    "10"
+  );
+  if (raw === null) return; // user cancelled
+
+  const delta = parseInt(raw.trim(), 10);
+  if (!Number.isFinite(delta) || isNaN(delta)) {
+    toast.error("Invalid number entered");
+    return;
+  }
+
+  setActionLoading((p) => ({ ...p, [artistId]: true }));
+  try {
+    const tokenFromStorage =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem("accessToken")
+        : null;
+    const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
+
+    const endpoint = `${API_HOST}/api/artists/admin/update-extended-days/`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: token } : {}),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ artist_id: artistId, delta }),
+    });
+
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      const msg =
+        (json && (json.detail || json.message)) ||
+        `Request failed: ${res.status}`;
+      toast.error(msg);
+      return;
+    }
+
+    // success — try to update local artist row (if API returns updated fields)
+    setArtists((prev) =>
+      prev.map((a) => {
+        if (a.id !== artistId) return a;
+        return {
+          ...a,
+          // update if API returns these fields; otherwise keep old
+          available_leads:
+            typeof json.available_leads !== "undefined"
+              ? Number(json.available_leads)
+              : a.available_leads,
+          extended_days:
+            typeof json.extended_days !== "undefined"
+              ? Number(json.extended_days)
+              : (a as any).extended_days,
+        };
+      })
+    );
+
+    toast.success(`Extended days updated (${delta >= 0 ? "+" : ""}${delta})`);
+  } catch (err) {
+    console.error("updateExtendedDays failed:", err);
+    toast.error("Failed to update extended days");
+  } finally {
+    setActionLoading((p) => ({ ...p, [artistId]: false }));
+  }
+};
+
 
 const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
   if (!artistPhone) {
@@ -918,6 +1067,26 @@ window.location.reload();
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
 
                               <DropdownMenuSeparator />
+<DropdownMenuItem
+  onClick={(e: any) => {
+    // prevent dropdown from stealing focus/closing before we open modal
+    try { e.preventDefault(); e.stopPropagation(); } catch {}
+    openPlanModal(artist.id, (artist as any).current_plan?.id ?? "");
+  }}
+  disabled={!!actionLoading[artist.id] || !!planActionLoading[artist.id]}
+>
+  Assign / Set Plan
+</DropdownMenuItem>
+<DropdownMenuItem
+  onClick={(e: any) => {
+    try { e.preventDefault(); e.stopPropagation(); } catch {}
+    updateExtendedDays(artist.id);
+  }}
+  disabled={!!actionLoading[artist.id]}
+>
+  Extend Days
+</DropdownMenuItem>
+
 
                               <DropdownMenuItem
                                 onClick={() =>
@@ -1215,6 +1384,75 @@ window.location.reload();
           </div>
         </div>
       )}
+      {/* ---------- Assign Plan Modal (paste AFTER Add Artist modal) ---------- */}
+{planModalOpen && planModalArtistId !== null && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    {/* backdrop */}
+    <div
+      className="absolute inset-0 bg-black/50"
+      onClick={() => {
+        setPlanModalOpen(false);
+        setPlanModalArtistId(null);
+      }}
+    />
+
+    {/* modal card */}
+    <div className="relative max-w-md w-full bg-white rounded shadow p-6 z-10">
+      <h3 className="text-lg font-semibold mb-2">Assign Plan to Artist</h3>
+      <p className="text-sm text-gray-600 mb-4">
+        Choose a subscription plan to assign (or leave blank to unset).
+      </p>
+
+      <div className="mb-4">
+        <select
+          value={selectedPlanId ?? ""}
+          onChange={(e) => setSelectedPlanId(e.target.value)}
+          className="w-full px-3 py-2 border rounded"
+        >
+          <option value="">
+            {plansLoading ? "Loading plans..." : "Select a plan (or leave empty to unset)"}
+          </option>
+          {plans.map((pl: any) => (
+            <option key={pl.id} value={pl.id}>
+              {pl.name} {pl.price ? `— ${pl.price}` : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex justify-between items-center mt-4">
+        <div className="text-sm text-gray-500">
+          {planModalArtistId ? `Artist ID: ${planModalArtistId}` : ""}
+        </div>
+
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setPlanModalOpen(false);
+              setPlanModalArtistId(null);
+              setSelectedPlanId("");
+            }}
+          >
+            Cancel
+          </Button>
+
+          <Button
+            onClick={() => {
+              // defensive: ensure artistId present
+              if (planModalArtistId !== null) setArtistPlan(planModalArtistId);
+            }}
+            disabled={!!planActionLoading[planModalArtistId ?? -1]}
+          >
+            {planActionLoading[planModalArtistId ?? -1] ? "Assigning..." : "Assign Plan"}
+          </Button>
+        </div>
+      </div>
     </div>
+  </div>
+)}
+
+    </div>
+    
   );
 }
