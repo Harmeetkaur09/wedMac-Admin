@@ -289,7 +289,6 @@ export default function LeadBulkUploaderpage() {
                   <th className="text-left">#</th>
                   <th className="text-left">Status</th>
                   <th className="text-left">Lead / Assigned</th>
-                  <th className="text-left">Errors</th>
                 </tr>
               </thead>
               <tbody>

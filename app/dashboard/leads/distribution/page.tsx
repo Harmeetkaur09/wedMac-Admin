@@ -431,20 +431,13 @@ export default function LeadDistributionWithToggle() {
               />
             </div>
 
-            <Select
-              onValueChange={(val) => handleChange("budget_range", Number(val))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Budget range" />
-              </SelectTrigger>
-              <SelectContent position="popper">
-                {budgetOptions.map((b) => (
-                  <SelectItem key={b.id} value={String(b.id)}>
-                    {b.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+         <input
+  type="number"
+  placeholder="Budget range"
+  className="w-full border rounded px-2 py-1"
+  onChange={(e) => handleChange("budget_range", Number(e.target.value))}
+/>
+
 
             {/* ---------- CHANGED: Event type as free-text input ---------- */}
             <Input
