@@ -564,6 +564,40 @@ export default function ArtistProfilesPage() {
                             )}
                           </div>
                         </div>
+                        
+                        {/* <div>
+                          <h4 className="text-sm font-medium mb-2">
+                            Certifications (
+                            {(artist.certifications || []).length})
+                          </h4>
+                          <div className="flex flex-wrap gap-3">
+                            {(artist.certifications || []).map(
+                              (c: FileItem) => (
+                                <a
+                                  key={c.id}
+                                  href={c.file_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="block"
+                                >
+                                  <img
+                                    src={c.file_url}
+                                    alt={c.file_name}
+                                    className="h-20 w-28 object-cover rounded-md border"
+                                  />
+                                  <div className="text-xs mt-1 text-gray-600">
+                                    {c.tag}
+                                  </div>
+                                </a>
+                              )
+                            )}
+                            {(artist.certifications || []).length === 0 && (
+                              <div className="text-sm text-gray-500">
+                                No Portfolio
+                              </div>
+                            )}
+                          </div>
+                        </div> */}
 
                         <div className="flex justify-between items-center pt-2 border-t">
                           {/* <div>

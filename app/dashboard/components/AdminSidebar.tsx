@@ -133,41 +133,40 @@ export default function AdminSidebar() {
 
           return (
             <div key={index} className="space-y-1">
-              <div
-                className={`group flex items-center justify-between p-3 rounded-xl transition-all duration-300 cursor-pointer ${
-                  isActive
-                    ? "bg-gradient-to-r from-[#FF6B9D] to-[#FF5A8C] text-white shadow-lg transform scale-[1.02]"
-                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                }`}
-                onClick={() => {
-                  if (hasSubItems) {
-                    toggleExpanded(item.title)
-                  }
-                }}
-              >
-                <Link
-                  href={item.href}
-                  className="flex items-center space-x-3 flex-1"
-                  onClick={(e) => {
-                    if (hasSubItems) {
-                      e.preventDefault()
-                    }
-                    setIsMobileOpen(false)
-                  }}
-                >
-                  <span
-                    className={`transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`}
-                  >
-                    {item.icon}
-                  </span>
-                  <span className="font-medium text-sm">{item.title}</span>
-                </Link>
-                {hasSubItems && (
-                  <div className={`transition-transform duration-300 ${isItemExpanded ? "rotate-180" : ""}`}>
-                    <ChevronDown className="h-4 w-4" />
-                  </div>
-                )}
-              </div>
+            <div
+  className={`group flex items-center justify-between p-3 rounded-xl transition-all duration-300 cursor-pointer ${
+    isActive
+      ? "bg-gradient-to-r from-[#FF6B9D] to-[#FF5A8C] text-white shadow-lg transform scale-[1.02]"
+      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+  }`}
+  onClick={(e) => {
+    if (hasSubItems) {
+      e.preventDefault()
+      toggleExpanded(item.title)
+    } else {
+      setIsMobileOpen(false)
+    }
+  }}
+>
+  <Link
+    href={item.href}
+    className="flex items-center space-x-3 flex-1"
+  >
+    <span
+      className={`transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`}
+    >
+      {item.icon}
+    </span>
+    <span className="font-medium text-sm">{item.title}</span>
+  </Link>
+
+  {hasSubItems && (
+    <div className={`transition-transform duration-300 ${isItemExpanded ? "rotate-180" : ""}`}>
+      <ChevronDown className="h-4 w-4" />
+    </div>
+  )}
+</div>
+
 
               {/* Sub Items */}
               {hasSubItems && (
@@ -229,12 +228,12 @@ export default function AdminSidebar() {
       </Button>
 
       {/* Mobile Overlay */}
-      {isMobileOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden animate-fade-in"
-          onClick={() => setIsMobileOpen(false)}
-        />
-      )}
+  {isMobileOpen && (
+  <div
+    className="fixed inset-0 bg-black/50 z-40 md:hidden animate-fade-in"
+    onClick={() => setIsMobileOpen(false)}
+  />
+)}
 
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-70 bg-white border-r border-gray-200 flex-col shadow-sm">
@@ -242,13 +241,13 @@ export default function AdminSidebar() {
       </aside>
 
       {/* Mobile Sidebar */}
-      <aside
-        className={`fixed left-0 top-0 z-70 h-full w-60 bg-white border-r border-gray-200 flex-col shadow-xl transform transition-transform duration-300 md:hidden ${
-          isMobileOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <SidebarContent />
-      </aside>
+    <aside
+  className={`fixed left-0 top-0 z-50 h-full w-60 bg-white border-r border-gray-200 flex-col shadow-xl transform transition-transform duration-300 md:hidden ${
+    isMobileOpen ? "translate-x-0" : "-translate-x-full"
+  }`}
+>
+  <SidebarContent />
+</aside>
     </>
   )
 }
