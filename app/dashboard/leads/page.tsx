@@ -66,7 +66,7 @@ type Lead = {
   } | null;
 };
 
-const API_URL = "https://api.wedmacindia.com/api/leads/list/";
+const API_URL = "https://api.wedmacindia.com/api/leads/all-leads/";
 // base used for update endpoints (matches your examples)
 const UPDATE_URL_BASE = "https://api.wedmacindia.com/api/leads";
 

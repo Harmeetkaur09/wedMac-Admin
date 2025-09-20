@@ -40,7 +40,7 @@ export default function LeadDistributionWithToggle() {
     phone: "",
     email: "",
     service: null,
-    event_type: "", // now blank string (user types)
+
     requirements: "",
     booking_date: "",
     budget_range: null,
@@ -181,10 +181,8 @@ export default function LeadDistributionWithToggle() {
       : [];
 
     // EVENT TYPE and LOCATION are now treated as free-text strings
-    const event_type_clean =
-      leadData.event_type && String(leadData.event_type).trim() !== ""
-        ? String(leadData.event_type).trim()
-        : null;
+   
+  
 
     const location_clean =
       leadData.location && String(leadData.location).trim() !== ""
@@ -194,7 +192,6 @@ export default function LeadDistributionWithToggle() {
     const payload: any = {
       ...leadData,
       makeup_types: makeup_types_clean,
-      event_type: event_type_clean,
       location: location_clean,
     };
 
@@ -422,7 +419,6 @@ export default function LeadDistributionWithToggle() {
             />
 
             <div>
-              <label className="block text-sm mb-1">Booking date</label>
               <input
                 type="date"
                 className="w-full p-2 rounded border"
@@ -431,20 +427,19 @@ export default function LeadDistributionWithToggle() {
               />
             </div>
 
-         <input
+         <Input
   type="number"
   placeholder="Budget range"
-  className="w-full border rounded px-2 py-1"
   onChange={(e) => handleChange("budget_range", Number(e.target.value))}
 />
 
 
             {/* ---------- CHANGED: Event type as free-text input ---------- */}
-            <Input
+            {/* <Input
               placeholder="Event type (e.g. Wedding, Engagement)"
               value={leadData.event_type || ""}
               onChange={(e) => handleChange("event_type", e.target.value)}
-            />
+            /> */}
 
             {/* ---------- CHANGED: Location as free-text input ---------- */}
             <Input

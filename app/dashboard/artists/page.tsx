@@ -90,6 +90,7 @@ export default function ArtistListPage() {
   const [planModalArtistId, setPlanModalArtistId] = useState<number | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [planActionLoading, setPlanActionLoading] = useState<Record<number, boolean>>({});
+const [createError, setCreateError] = useState<string | null>(null);
 
   const openPlanModal = (artistId: number, currentPlanId?: string | null) => {
     setPlanModalArtistId(artistId);
@@ -288,36 +289,146 @@ export default function ArtistListPage() {
     }
   };
 
-  const postArtistTag = async (artistId: number, tag: string) => {
-    setActionLoading((p) => ({ ...p, [artistId]: true }));
-    try {
-      const tokenFromStorage = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-      const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
-      const endpoint = `${API_HOST}/api/artists/admin/${artistId}/tag/`;
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          ...(token ? { Authorization: token } : {}),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ tag }),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`;
-        toast.error(msg);
+const postArtistTag = async (artistId: number, tag: string) => {
+  setActionLoading((p) => ({ ...p, [artistId]: true }));
+  try {
+    const tokenFromStorage =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem("accessToken")
+        : null;
+    const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
+    const endpoint = `${API_HOST}/api/artists/admin/${artistId}/tag/`;
+
+    // find current tags from local state (support old `tag` string too)
+    const artist = artists.find((a) => a.id === artistId) as any | undefined;
+    const currentTags = Array.isArray(artist?.tags)
+      ? [...artist.tags]
+      : artist?.tag
+      ? [String(artist.tag)]
+      : [];
+
+    let tagsToSend: string[] = [];
+
+    if (tag && tag.trim()) {
+      // ADD mode: add this tag to existing tags (no duplicates)
+      const t = tag.trim();
+      if (!currentTags.includes(t)) {
+        tagsToSend = [...currentTags, t];
+      } else {
+        // already present — nothing to change
+        tagsToSend = currentTags;
+      }
+    } else {
+      // REMOVE mode: ask which tag to remove (or "all" to clear)
+      if (!currentTags || currentTags.length === 0) {
+        window.alert("No tags present for this artist.");
         return;
       }
-      if (tag && tag.trim()) toast.success(`Tag "${tag}" applied`);
-      else toast.success("Tag removed");
-      fetchArtists();
-    } catch (err) {
-      console.error("Tag update failed:", err);
-      toast.error("Failed to update tag");
-    } finally {
-      setActionLoading((p) => ({ ...p, [artistId]: false }));
+      const choice = window.prompt(
+        `Current tags: ${currentTags.join(", ")}.\nEnter tag to remove (comma-separated allowed), or type "all" to remove all tags:`,
+        ""
+      );
+      if (choice === null) return; // user cancelled
+      const val = choice.trim();
+      if (val.toLowerCase() === "all") {
+        tagsToSend = [];
+      } else {
+        const removeList = val
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        tagsToSend = currentTags.filter((t) => !removeList.includes(t));
+      }
     }
-  };
+
+    // send to API in new shape { tags: [...] }
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: token } : {}),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ tags: tagsToSend }),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`;
+      toast.error(msg);
+      return;
+    }
+
+    // update local state (prefer payload from server if returned)
+    // try to get tags from response if provided, otherwise use tagsToSend
+    const newTagsFromServer = Array.isArray(json?.tags) ? json.tags : tagsToSend;
+
+    setArtists((prev) =>
+      prev.map((a) => (a.id === artistId ? { ...a, tags: newTagsFromServer } : a))
+    );
+
+    if (tag && tag.trim()) {
+      toast.success(`Tag "${tag.trim()}" applied`);
+    } else {
+      toast.success("Tag(s) updated");
+    }
+
+    // optionally refresh list from server to be fully in-sync
+    fetchArtists();
+  } catch (err) {
+    console.error("Tag update failed:", err);
+    toast.error("Failed to update tag");
+  } finally {
+    setActionLoading((p) => ({ ...p, [artistId]: false }));
+  }
+};
+
+const updateArtistPhone = async (artistId: number, currentPhone?: string) => {
+  const newPhone = window.prompt("Enter new phone number:", currentPhone ?? "");
+  if (!newPhone) return;
+
+  const sanitizedPhone = newPhone.replace(/\D/g, "").slice(0, 10);
+  if (!/^\d{10}$/.test(sanitizedPhone)) {
+    toast.error("Phone number must be exactly 10 digits");
+    return;
+  }
+
+  setActionLoading((p) => ({ ...p, [artistId]: true }));
+
+  try {
+    const tokenFromStorage = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
+    const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
+    const endpoint = `${API_HOST}/api/artists/admin/${artistId}/update-mobile/`;
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: token } : {}),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ phone: sanitizedPhone }),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`;
+      toast.error(msg);
+      return;
+    }
+
+    setArtists((prev) =>
+      prev.map((a) => (a.id === artistId ? { ...a, phone: sanitizedPhone} : a))
+    );
+    toast.success("Phone number updated successfully");
+  } catch (err) {
+    console.error("Phone update failed:", err);
+    toast.error("Failed to update phone number");
+  } finally {
+    setActionLoading((p) => ({ ...p, [artistId]: false }));
+  }
+};
+
 
   const fetchArtists = async () => {
     setLoading(true);
@@ -464,102 +575,158 @@ export default function ArtistListPage() {
     }
   };
 
-  const createArtist = async () => {
-    const fn = (newArtist.first_name || "").trim();
-    const ln = (newArtist.last_name || "").trim();
-    const phone = (newArtist.phone || "").trim();
-    const errors: typeof formErrors = {};
-    if (!fn) errors.first_name = "First name is required";
-    else if (!isAlpha(fn)) errors.first_name = "Name must contain only letters and spaces";
-    if (ln && !isAlpha(ln)) errors.last_name = "Last name must contain only letters and spaces";
-    if (!phone) errors.phone = "Phone is required";
-    else if (!isPhoneValid(phone)) errors.phone = "Phone must be exactly 10 digits";
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
-      const firstError = errors.first_name || errors.last_name || errors.phone;
-      toast.error(firstError || "Unknown error");
+const createArtist = async () => {
+  // client-side validations (unchanged)
+  const fn = (newArtist.first_name || "").trim();
+  const ln = (newArtist.last_name || "").trim();
+  const phone = (newArtist.phone || "").trim();
+  const errors: typeof formErrors = {};
+  if (!fn) errors.first_name = "First name is required";
+  else if (!isAlpha(fn)) errors.first_name = "Name must contain only letters and spaces";
+  if (ln && !isAlpha(ln)) errors.last_name = "Last name must contain only letters and spaces";
+  if (!phone) errors.phone = "Phone is required";
+  else if (!isPhoneValid(phone)) errors.phone = "Phone must be exactly 10 digits";
+  if (Object.keys(errors).length > 0) {
+    setFormErrors(errors);
+    setCreateError(null);
+    const firstError = errors.first_name || errors.last_name || errors.phone;
+    toast.error(firstError || "Unknown error");
+    return;
+  }
+
+  setCreateLoading(true);
+  setCreateError(null);
+  setFormErrors({});
+
+  try {
+    const tokenFromStorage = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
+    const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
+    const payload: any = {
+      first_name: newArtist.first_name,
+      last_name: newArtist.last_name || "",
+      phone: newArtist.phone,
+      email: newArtist.email || null,
+      gender: newArtist.gender || null,
+      city: newArtist.city || null,
+      state: newArtist.state || null,
+      pincode: newArtist.pincode || null,
+      subscription_plan_id: newArtist.subscription_plan_id && newArtist.subscription_plan_id !== "" ? String(newArtist.subscription_plan_id) : null,
+    };
+    if (newArtist.lat) payload.lat = Number(newArtist.lat);
+    if (newArtist.lng) payload.lng = Number(newArtist.lng);
+
+    const res = await fetch(`${API_HOST}/api/users/admin/create-artist/`, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: token } : {}),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      console.error("Create artist failed", res.status, json);
+
+      // parse server errors into friendly strings
+      const newFieldErrors: typeof formErrors = {};
+      let generalMessage: string | null = null;
+
+      if (json) {
+        // common keys
+        if (typeof json === "string") {
+          generalMessage = json;
+        } else {
+          if (json.error) {
+            // {"error":"Enter..."}
+            generalMessage = typeof json.error === "string" ? json.error : JSON.stringify(json.error);
+          }
+          if (json.detail) {
+            generalMessage = typeof json.detail === "string" ? json.detail : JSON.stringify(json.detail);
+          }
+
+          // field-level errors like { phone: ["..."] } or { phone: "..." }
+          for (const key of Object.keys(json)) {
+            const val = (json as any)[key];
+            if (!val) continue;
+            const k = key.toLowerCase();
+            const joinArray = (v: any) => (Array.isArray(v) ? v.join(" ") : String(v));
+
+            if (k.includes("phone")) {
+              newFieldErrors.phone = joinArray(val);
+            } else if (k.includes("first") && k.includes("name")) {
+              newFieldErrors.first_name = joinArray(val);
+            } else if (k.includes("last") && k.includes("name")) {
+              newFieldErrors.last_name = joinArray(val);
+            } else if (!generalMessage && (Array.isArray(val) || typeof val === "string")) {
+              // fallback to set a general message if nothing else
+              generalMessage = joinArray(val);
+            }
+          }
+        }
+      }
+
+      setFormErrors((prev) => ({ ...prev, ...newFieldErrors }));
+      setCreateError(generalMessage || `Create failed: ${res.status}`);
+      toast.error(generalMessage || `Create failed: ${res.status}`);
       return;
     }
-    setCreateLoading(true);
-    try {
-      const tokenFromStorage = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-      const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
-      const payload: any = {
-        first_name: newArtist.first_name,
-        last_name: newArtist.last_name || "",
-        phone: newArtist.phone,
-        email: newArtist.email || null,
-        gender: newArtist.gender || null,
-        city: newArtist.city || null,
-        state: newArtist.state || null,
-        pincode: newArtist.pincode || null,
-        subscription_plan_id: newArtist.subscription_plan_id && newArtist.subscription_plan_id !== "" ? String(newArtist.subscription_plan_id) : null,
+
+    // Success path: clear and add created item (your existing logic)
+    window.location.reload();
+    toast.success("Artist created");
+    if (json && (json.id || json.user_id)) {
+      const created: Artist = {
+        id: json.id || json.user_id,
+        user_phone: json.phone || String(json.user_phone || payload.phone),
+        first_name: json.first_name || payload.first_name,
+        last_name: json.last_name || payload.last_name,
+        phone: json.phone || payload.phone,
+        email: json.email || payload.email,
+        gender: json.gender || payload.gender,
+        date_of_birth: json.date_of_birth || null,
+        location: json.city || json.location || `${payload.city || ""}`,
+        payment_status: null,
+        status: json.status || "pending",
+        internal_notes: null,
+        my_claimed_leads: json.my_claimed_leads || null,
+        profile_picture: json.profile_picture ? { file_url: json.profile_picture } : null,
+        certifications: json.certifications || [],
+        created_at: json.created_at || new Date().toISOString(),
+        my_referral_code: json.my_referral_code || null,
+        available_leads: typeof json.available_leads !== "undefined" ? Number(json.available_leads) : 0,
       };
-      if (newArtist.lat) payload.lat = Number(newArtist.lat);
-      if (newArtist.lng) payload.lng = Number(newArtist.lng);
-      const res = await fetch(`${API_HOST}/api/users/admin/create-artist/`, {
-        method: "POST",
-        headers: {
-          ...(token ? { Authorization: token } : {}),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        console.error("Create artist failed", res.status, json);
-        const msg = (json && (json.detail || json.message)) || `Create failed: ${res.status}`;
-        toast.error(msg);
-        return;
-      }
-      window.location.reload();
-      toast.success("Artist created");
-      if (json && (json.id || json.user_id)) {
-        const created: Artist = {
-          id: json.id || json.user_id,
-          user_phone: json.phone || String(json.user_phone || payload.phone),
-          first_name: json.first_name || payload.first_name,
-          last_name: json.last_name || payload.last_name,
-          phone: json.phone || payload.phone,
-          email: json.email || payload.email,
-          gender: json.gender || payload.gender,
-          date_of_birth: json.date_of_birth || null,
-          location: json.city || json.location || `${payload.city || ""}`,
-          payment_status: null,
-          status: json.status || "pending",
-          internal_notes: null,
-          my_claimed_leads: json.my_claimed_leads || null,
-          profile_picture: json.profile_picture ? { file_url: json.profile_picture } : null,
-          certifications: json.certifications || [],
-          created_at: json.created_at || new Date().toISOString(),
-          my_referral_code: json.my_referral_code || null,
-          available_leads: typeof json.available_leads !== "undefined" ? Number(json.available_leads) : 0,
-        };
-        setArtists((p) => [created, ...p]);
-      } else {
-        fetchArtists();
-      }
-      setNewArtist({
-        first_name: "",
-        last_name: "",
-        phone: "",
-        email: "",
-        gender: "",
-        city: "",
-        state: "",
-        pincode: "",
-        lat: "",
-        lng: "",
-        subscription_plan_id: "",
-      });
-      setAddOpen(false);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to create artist");
-    } finally {
-      setCreateLoading(false);
+      setArtists((p) => [created, ...p]);
+    } else {
+      fetchArtists();
     }
-  };
+    // reset form
+    setNewArtist({
+      first_name: "",
+      last_name: "",
+      phone: "",
+      email: "",
+      gender: "",
+      city: "",
+      state: "",
+      pincode: "",
+      lat: "",
+      lng: "",
+      subscription_plan_id: "",
+    });
+    setAddOpen(false);
+    setFormErrors({});
+    setCreateError(null);
+  } catch (err) {
+    console.error(err);
+    setCreateError("Failed to create artist");
+    toast.error("Failed to create artist");
+  } finally {
+    setCreateLoading(false);
+  }
+};
+
 
   const adjustArtistLeads = async (artistId: number, action: "add" | "remove") => {
     const raw = window.prompt(`Enter amount to ${action} (numeric):`, "1");
@@ -747,7 +914,19 @@ export default function ArtistListPage() {
                       <div className="mt-3 flex items-center justify-between">
                         <div className="flex items-center gap-2 text-sm">
                           <span className={`px-2 py-1 rounded text-xs ${isActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>{isActive ? "Active" : "Inactive"}</span>
-                          <span className="text-xs text-gray-500">{artist.tag ?? "-"}</span>
+<span className="text-xs text-gray-500">
+  {Array.isArray((artist as any).tags) && (artist as any).tags.length > 0 ? (
+    (artist as any).tags.map((t: string) => (
+      <Badge key={t} className="text-xs bg-indigo-50 text-indigo-800">
+        {t}
+      </Badge>
+    ))
+  ) : artist.tag ? (
+    <Badge className="text-xs bg-indigo-50 text-indigo-800">{artist.tag}</Badge>
+  ) : (
+    <span className="text-xs text-gray-500">-</span>
+  )}
+</span>
                         </div>
 
                         <div>
@@ -780,6 +959,13 @@ export default function ArtistListPage() {
                               >
                                 Extend Days
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+  onClick={() => updateArtistPhone(artist.id, artist.phone ?? artist.user_phone)}
+  disabled={!!actionLoading[artist.id]}
+>
+  {actionLoading[artist.id] ? "Processing..." : "Edit Phone"}
+</DropdownMenuItem>
+
 
                               <DropdownMenuItem
                                 onClick={() => loginAsArtist(artist.user_phone ?? artist.phone ?? `${artist.phone}`, artist.id)}
@@ -869,8 +1055,16 @@ export default function ArtistListPage() {
                           {new Date(artist.created_at ?? "-").toISOString().split("T")[0]}
                         </TableCell>
 
-                        <TableCell>{artist.user_phone ?? "-"}</TableCell>
-                        <TableCell>{artist.tag ?? "-"}</TableCell>
+                        <TableCell>{artist.phone ?? "-"}</TableCell>
+<TableCell>
+  {Array.isArray((artist as any).tag) && (artist as any).tag.length > 0 ? (
+    (artist as any).tag.join(', ')
+  ) : (
+    <span className="text-xs text-gray-500">-</span>
+  )}
+</TableCell>
+
+
                         <TableCell>{artist.my_claimed_leads ?? "-"}</TableCell>
                         <TableCell className="flex justify-center gap-2">
                           {renderBadge(artist.status)}
@@ -904,6 +1098,12 @@ export default function ArtistListPage() {
                               <DropdownMenuItem onClick={(e: any) => { try { e.preventDefault(); e.stopPropagation(); } catch {} ; updateExtendedDays(artist.id); }} disabled={!!actionLoading[artist.id]}>
                                 Extend Days
                               </DropdownMenuItem>
+<DropdownMenuItem
+  onClick={() => updateArtistPhone(artist.id, artist.phone ?? artist.phone)}
+  disabled={!!actionLoading[artist.id]}
+>
+  {actionLoading[artist.id] ? "Processing..." : "Edit Phone"}
+</DropdownMenuItem>
 
                               <DropdownMenuItem onClick={() => loginAsArtist(artist.user_phone ?? artist.phone ?? `${artist.phone}`, artist.id)} disabled={!!actionLoading[artist.id]}>
                                 {actionLoading[artist.id] ? "Processing..." : "Login as Artist"}
@@ -984,6 +1184,7 @@ export default function ArtistListPage() {
           <div className="relative w-full max-w-md bg-white rounded shadow p-6">
             <h3 className="text-lg font-semibold mb-2">Create Artist (Admin)</h3>
             <p className="text-sm text-gray-600 mb-4">Creates an artist without OTP</p>
+{createError && <div className="mb-3 p-2 rounded bg-red-50 text-red-700 text-sm">{createError}</div>}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Input placeholder="First name" value={newArtist.first_name} onChange={(e) => { const val = sanitizeAlpha(e.target.value); setNewArtist((p: any) => ({ ...p, first_name: val })); setFormErrors((fe) => ({ ...fe, first_name: undefined })); }} />
@@ -1022,6 +1223,8 @@ export default function ArtistListPage() {
               <Button onClick={createArtist} disabled={createLoading}>{createLoading ? "Creating..." : "Create Artist"}</Button>
             </div>
           </div>
+          {/* ... inside the Add Artist modal before the grid of inputs ... */}
+
         </div>
       )}
 
