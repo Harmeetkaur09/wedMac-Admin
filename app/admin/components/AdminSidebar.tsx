@@ -53,7 +53,7 @@ const sidebarItems = [
   },
   {
     title: "Payment Management",
-    href: "/admin/payments",
+    href: "/admin/payments/plans",
     icon: <CreditCard className="h-5 w-5" />,
     subItems: [
       { title: "Subscription Plans", href: "/admin/payments/plans" },
@@ -63,7 +63,7 @@ const sidebarItems = [
   },
   {
     title: "Content Management",
-    href: "/admin/content",
+    href: "/admin/content/pages",
     icon: <FileText className="h-5 w-5" />,
     subItems: [
       { title: "Artist Comments", href: "/admin/content/pages" },

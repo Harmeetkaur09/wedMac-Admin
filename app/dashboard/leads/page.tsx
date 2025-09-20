@@ -50,13 +50,7 @@ type Lead = {
   phone?: string | null;
   service?: string;
   location?: string;
-  status:
-    | "new"
-    | "contacted"
-    | "qualified"
-    | "unqualified"
-    | "converted"
-    | "other";
+   status: "new" | "booked" | "claimed";
   source?: string;
   date?: string;
   maxClaims?: number | null;
@@ -91,14 +85,12 @@ const parseNumber = (v: any): number | null => {
 
 const normalizeStatus = (s: any): Lead["status"] => {
   const st = (s ?? "").toString().toLowerCase().trim();
-  if (!st) return "other";
-  if (st.includes("contact")) return "contacted";
+  if (st.includes("book")) return "booked";
+  if (st.includes("claim")) return "claimed";
   if (st.includes("new")) return "new";
-  if (st.includes("qual")) return "qualified";
-  if (st.includes("unqual")) return "unqualified";
-  if (st.includes("convert")) return "converted";
-  return "other";
+  return "new"; // fallback
 };
+
 
 const mapToLead = (raw: RawLead): Lead => {
   const id =
@@ -156,7 +148,7 @@ const mapToLead = (raw: RawLead): Lead => {
     name,
     email,
     phone,
-    event_type: service, // <-- add this line
+    event_type: service,
     location,
     status,
     source,
@@ -376,20 +368,12 @@ export default function LeadManagement() {
   };
 
   // Edit basic info (deprecated prompt-based) - replaced by modal open
-  // kept for backward compatibility if some other code calls it
   const handleEditLead = (lead: Lead) => {
     openEditModal(lead);
   };
 
   // Change status via prompt
-  const STATUS_OPTIONS: Lead["status"][] = [
-    "new",
-    "contacted",
-    "qualified",
-    "unqualified",
-    "converted",
-    "other",
-  ];
+
 
   const handleChangeStatus = async (lead: Lead) => {
     try {
@@ -464,29 +448,19 @@ export default function LeadManagement() {
     setSelectedArtist("");
   };
 
-  const counts = useMemo(() => {
-    const c = {
-      new: 0,
-      contacted: 0,
-      qualified: 0,
-      unqualified: 0,
-      converted: 0,
-      other: 0,
-      total: leads.length,
-    } as Record<string, number>;
-    for (const l of leads) {
-      c[l.status] = (c[l.status] ?? 0) + 1;
-    }
-    return c as {
-      new: number;
-      contacted: number;
-      qualified: number;
-      unqualified: number;
-      converted: number;
-      other: number;
-      total: number;
-    };
-  }, [leads]);
+ const counts = useMemo(() => {
+  const c = {
+    new: 0,
+    booked: 0,
+    claimed: 0,
+    total: leads.length,
+  };
+  for (const l of leads) {
+    c[l.status] = (c[l.status] ?? 0) + 1;
+  }
+  return c;
+}, [leads]);
+
 
   const statusesPresent = useMemo(() => {
     const s = new Set<string>();
@@ -495,7 +469,7 @@ export default function LeadManagement() {
   }, [leads]);
 
   const contactedLeads = useMemo(() => {
-    return leads.filter((l) => l.status === "contacted");
+    return leads.filter((l) => l.status === "booked");
   }, [leads]);
 
   const filteredLeads = useMemo(() => {
@@ -513,22 +487,19 @@ export default function LeadManagement() {
     );
   }, [leads, activeTab, search]);
 
-  const badgeClassForStatus = (s: Lead["status"]) => {
-    switch (s) {
-      case "new":
-        return "bg-blue-100 text-blue-800";
-      case "contacted":
-        return "bg-purple-100 text-purple-800";
-      case "qualified":
-        return "bg-green-100 text-green-800";
-      case "unqualified":
-        return "bg-red-100 text-red-800";
-      case "converted":
-        return "bg-yellow-100 text-yellow-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
+ const badgeClassForStatus = (s: Lead["status"]) => {
+  switch (s) {
+    case "new":
+      return "bg-blue-100 text-blue-800";
+    case "booked":
+      return "bg-green-100 text-green-800";
+    case "claimed":
+      return "bg-purple-100 text-purple-800";
+    default:
+      return "bg-gray-100 text-gray-800";
+  }
+};
+
 
   return (
     <div>
@@ -551,7 +522,7 @@ export default function LeadManagement() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm text-purple-600 font-medium">Claimed</p>
-                  <p className="text-2xl font-bold">{counts.contacted}</p>
+                  <p className="text-2xl font-bold">{counts.claimed}</p>
                 </div>
                 <div className="flex flex-col items-end gap-2"></div>
               </div>
@@ -591,7 +562,7 @@ export default function LeadManagement() {
 
             <div className="bg-green-50 p-4 rounded-lg">
               <p className="text-sm text-green-600 font-medium">Other</p>
-              <p className="text-2xl font-bold">{counts.other}</p>
+              <p className="text-2xl font-bold">{counts.new}</p>
             </div>
           </div>
         </CardContent>
@@ -603,23 +574,25 @@ export default function LeadManagement() {
         defaultValue="all"
         className="mb-6"
       >
-        <TabsList>
-          <TabsTrigger value="all">All Leads ({counts.total})</TabsTrigger>
-          <TabsTrigger value="new">New ({counts.new})</TabsTrigger>
-          <TabsTrigger value="contacted">Claimed ({counts.contacted})</TabsTrigger>
-        </TabsList>
+     <TabsList>
+  <TabsTrigger value="all">All Leads ({counts.total})</TabsTrigger>
+  <TabsTrigger value="new">New ({counts.new})</TabsTrigger>
+  <TabsTrigger value="booked">Booked ({counts.booked})</TabsTrigger>
+  <TabsTrigger value="claimed">Claimed ({counts.claimed})</TabsTrigger>
+</TabsList>
+
 
         <TabsContent value={activeTab}>
           <Card>
             <CardHeader className="pb-2">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 w-full">
                 <CardTitle>Lead List</CardTitle>
-                <div className="flex gap-2">
-                  <div className="relative">
+                <div className="flex w-full sm:w-auto gap-2 items-center">
+                  <div className="relative flex-1 sm:flex-none">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
                     <Input
                       placeholder="Search leads..."
-                      className="pl-8 w-64"
+                      className="pl-8 w-full sm:w-64"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                     />
@@ -628,6 +601,7 @@ export default function LeadManagement() {
                     variant="outline"
                     size="icon"
                     onClick={() => fetchLeads()}
+                    aria-label="Refresh"
                   >
                     <Filter className="h-4 w-4" />
                   </Button>
@@ -648,95 +622,159 @@ export default function LeadManagement() {
                 </div>
               ) : (
                 <>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Service</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Capping</TableHead>
-                        <TableHead>Claimed</TableHead>
-                        <TableHead>Budget</TableHead>
-                        <TableHead>Assign To</TableHead>
-                        <TableHead>Created Date</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredLeads.map((lead) => (
-                        <TableRow key={String(lead.id)} data-lead-id={String(lead.id)}>
-                          <TableCell className="font-medium">
-                            {lead.name}
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="text-xs">{lead.email ?? "-"}</p>
-                              <p className="text-xs text-gray-500">
-                                {lead.phone ?? "-"}
-                              </p>
+                  {/* ---------------- MOBILE LIST ---------------- */}
+                  <div className="sm:hidden space-y-3">
+                    {filteredLeads.map((lead) => (
+                      <div
+                        key={String(lead.id)}
+                        data-lead-id={String(lead.id)}
+                        className="bg-white border rounded-lg p-3 shadow-sm"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{lead.name}</p>
+                              <Badge className={badgeClassForStatus(lead.status)}>{lead.status}</Badge>
                             </div>
-                          </TableCell>
-                          <TableCell> <div className="space-y-1">
-                              <div className="font-medium">{lead.event_type ?? "-"}</div>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Calendar className="w-3 h-3" />
-                              {lead.booking_date ?? "-"}
-                              </div>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <MapPin className="w-3 h-3" />
-                                {lead.location ?? "-"}
-                              </div>
-                            </div></TableCell>
-                    
-                          <TableCell>
-                            <Badge className={badgeClassForStatus(lead.status)}>
-                              {lead.status}
-                            </Badge>
-                          </TableCell>
-
-                          <TableCell>{lead.maxClaims ?? "-"}</TableCell>
-                          <TableCell>{lead.claimedCount ?? "-"}</TableCell>
-                          <TableCell>{lead.budget ?? lead.budgetMax ?? "-"}</TableCell>
-                          <TableCell>{lead.assigned_to?.first_name ?? "-"}</TableCell>
-
-                          <TableCell>{lead.date ?? "-"}</TableCell>
-                          <TableCell className="text-right">
+                            <p className="text-xs text-gray-500">{lead.email ?? "-"}</p>
+                            <p className="text-xs text-gray-500">{lead.phone ?? "-"}</p>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <div className="text-sm text-gray-500">{lead.booking_date ?? lead.date ?? "-"}</div>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
+                                <Button variant="ghost" size="icon" className="p-1">
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem
-                                  onClick={() => openEditModal(lead)}
-                                >
+                                <DropdownMenuItem onClick={() => openEditModal(lead)}>
                                   Edit Lead
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleAssignTo(lead)}>
                                   Assign To
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => handleSetMaxClaims(lead)}
-                                >
+                                <DropdownMenuItem onClick={() => handleSetMaxClaims(lead)}>
                                   Set Capping
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-red-500"
-                                  onClick={() => handleSoftDelete(lead)}
-                                >
-                                   Delete
+                                <DropdownMenuItem className="text-red-500" onClick={() => handleSoftDelete(lead)}>
+                                  Delete
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
-                          </TableCell>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {lead.date ?? "-"}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {lead.location ?? "-"}
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <div>{lead.assigned_to?.first_name ?? "-"}</div>
+                            <div className="text-xs text-gray-400">{lead.claimedCount ?? "-" } claimed</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* ---------------- DESKTOP TABLE ---------------- */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Contact</TableHead>
+                          <TableHead>Service</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Capping</TableHead>
+                          <TableHead>Claimed</TableHead>
+                          <TableHead>Budget</TableHead>
+                          <TableHead>Assign To</TableHead>
+                          <TableHead>Created Date</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredLeads.map((lead) => (
+                          <TableRow key={String(lead.id)} data-lead-id={String(lead.id)}>
+                            <TableCell className="font-medium">
+                              {lead.name}
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="text-xs">{lead.email ?? "-"}</p>
+                                <p className="text-xs text-gray-500">
+                                  {lead.phone ?? "-"}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <div className="font-medium">{lead.event_type ?? "-"}</div>
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Calendar className="w-3 h-3" />
+                                  {lead.booking_date ?? "-"}
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <MapPin className="w-3 h-3" />
+                                  {lead.location ?? "-"}
+                                </div>
+                              </div>
+                            </TableCell>
+
+                            <TableCell>
+                              <Badge className={badgeClassForStatus(lead.status)}>
+                                {lead.status}
+                              </Badge>
+                            </TableCell>
+
+                            <TableCell>{lead.maxClaims ?? "-"}</TableCell>
+                            <TableCell>{lead.claimedCount ?? "-"}</TableCell>
+                            <TableCell>{lead.budget ?? lead.budgetMax ?? "-"}</TableCell>
+                            <TableCell>{lead.assigned_to?.first_name ?? "-"}</TableCell>
+
+                            <TableCell>{lead.date ?? "-"}</TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                  <DropdownMenuItem onClick={() => openEditModal(lead)}>
+                                    Edit Lead
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleAssignTo(lead)}>
+                                    Assign To
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleSetMaxClaims(lead)}>
+                                    Set Capping
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-red-500" onClick={() => handleSoftDelete(lead)}>
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
 
                   <div className="flex items-center justify-end space-x-2 py-4">
                     <Button variant="outline" size="sm">Previous</Button>
@@ -753,91 +791,82 @@ export default function LeadManagement() {
       </Tabs>
 
       {assigningLead && (
-  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-    <div className="bg-white p-6 rounded-lg w-96">
-      <h2 className="text-lg font-bold mb-4">
-        Assign Lead: {assigningLead.name}
-      </h2>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-4 rounded-lg w-full max-w-md mx-auto sm:p-6">
+            <h2 className="text-lg font-bold mb-3">Assign Lead: {assigningLead.name}</h2>
 
-      {loadingArtists ? (
-        <p>Loading artists...</p>
-      ) : (
-       
-<Command className="border rounded-md">
-  <CommandInput placeholder="Search artist..." />
-  <CommandList>
-    <CommandEmpty>No artist found.</CommandEmpty>
-    <CommandGroup>
-      {artists.map((a) => (
-     <CommandItem
-  key={String(a.id)}
-  value={`${a.id} ${a.name} ${a.phone}`}
-  onSelect={() => setSelectedArtist(String(a.id))}
-  className={`cursor-pointer ${
-    selectedArtist === String(a.id)
-      ? "bg-[#FF6B9D] text-white"
-      : ""
-  }`}
->
-  {a.name || "Unnamed"} — {a.phone || "-"}
-</CommandItem>
-      ))}
-    </CommandGroup>
-  </CommandList>
-</Command>      )}
+            {loadingArtists ? (
+              <p>Loading artists...</p>
+            ) : (
+              <Command className="border rounded-md max-h-60 overflow-auto">
+                <CommandInput placeholder="Search artist..." />
+                <CommandList>
+                  <CommandEmpty>No artist found.</CommandEmpty>
+                  <CommandGroup>
+                    {artists.map((a) => (
+                      <CommandItem
+                        key={String(a.id)}
+                        value={`${a.id} ${a.name} ${a.phone}`}
+                        onSelect={() => setSelectedArtist(String(a.id))}
+                        className={`cursor-pointer ${selectedArtist === String(a.id) ? "bg-[#FF6B9D] text-white" : ""}`}
+                      >
+                        {a.name || "Unnamed"} — {a.phone || "-"}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            )}
 
-      <div className="flex justify-end gap-2 mt-4">
-        <Button variant="outline" onClick={() => setAssigningLead(null)}>
-          Cancel
-        </Button>
-     <Button
-  className="bg-[#FF6B9D] text-white"
-  disabled={!selectedArtist}
-  onClick={async () => {
-    if (!selectedArtist) return;
-    const artistId = Number(selectedArtist);
-    if (!Number.isFinite(artistId)) {
-      window.alert("Invalid artist selected. Please choose a valid artist.");
-      return;
-    }
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setAssigningLead(null)}>Cancel</Button>
+              <Button
+                className="bg-[#FF6B9D] text-white"
+                disabled={!selectedArtist}
+                onClick={async () => {
+                  if (!selectedArtist) return;
+                  const artistId = Number(selectedArtist);
+                  if (!Number.isFinite(artistId)) {
+                    window.alert("Invalid artist selected. Please choose a valid artist.");
+                    return;
+                  }
 
-    try {
-      const payload = { assigned_to: artistId };
-      const updated = await patchLead(assigningLead.id, payload);
+                  try {
+                    const payload = { assigned_to: artistId };
+                    const updated = await patchLead(assigningLead.id, payload);
 
-      const artistInfo = artists.find((a) => String(a.id) === String(artistId));
-      const assignedObj = artistInfo
-        ? { id: artistId, first_name: artistInfo.name, phone: artistInfo.phone }
-        : { id: artistId };
+                    const artistInfo = artists.find((a) => String(a.id) === String(artistId));
+                    const assignedObj = artistInfo
+                      ? { id: artistId, first_name: artistInfo.name, phone: artistInfo.phone }
+                      : { id: artistId };
 
-      setLeads((prev) =>
-        prev.map((p) =>
-          String(p.id) === String(assigningLead.id)
-            ? mapToLead({ ...(p.raw ?? {}), ...(updated ?? payload), assigned_to: assignedObj })
-            : p
-        )
-      );
+                    setLeads((prev) =>
+                      prev.map((p) =>
+                        String(p.id) === String(assigningLead.id)
+                          ? mapToLead({ ...(p.raw ?? {}), ...(updated ?? payload), assigned_to: assignedObj })
+                          : p
+                      )
+                    );
 
-      setAssigningLead(null);
-      window.alert("Lead assigned.");
-    } catch (err: any) {
-      console.error(err);
-      window.alert("Failed to assign lead: " + (err?.message ?? err));
-    }
-  }}
->
-  Assign
-</Button>
-
-      </div>
-    </div>
-  </div>
-)}
+                    setAssigningLead(null);
+                    window.alert("Lead assigned.");
+                  } catch (err: any) {
+                    console.error(err);
+                    window.alert("Failed to assign lead: " + (err?.message ?? err));
+                  }
+                }}
+              >
+                Assign
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ---------- EDIT LEAD MODAL ---------- */}
       {editingLead && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-[520px]">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-4 rounded-lg w-full max-w-lg mx-auto sm:p-6">
             <h2 className="text-lg font-bold mb-3">Edit Lead</h2>
             <p className="text-sm text-gray-600 mb-4">
               Edit name, service, event date, location, phone and budget.

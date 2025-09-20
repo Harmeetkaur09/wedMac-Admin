@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Filter, Search, Plus, MoreHorizontal } from "lucide-react";
+import { Filter, Search, Plus, MoreHorizontal, Phone, MessageCircle } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Table,
@@ -37,7 +37,7 @@ export default function UserManagementPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState<string>("");
-  const token = sessionStorage.getItem("accessToken");
+  // token read inside effects where needed (avoid SSR issues)
 
   useEffect(() => {
     let mounted = true;
@@ -45,23 +45,22 @@ export default function UserManagementPage() {
       setLoading(true);
       setError(null);
       try {
-        const token = sessionStorage.getItem("accessToken"); // get token from session storage
+        const token = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
         const res = await fetch(
           "https://api.wedmacindia.com/api/public/get-contact-submissions/",
           {
             headers: {
               "Content-Type": "application/json",
-              ...(token && { Authorization: `Bearer ${token}` }), // add token if present
+              ...(token && { Authorization: `Bearer ${token}` }),
             },
           }
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        // Expecting { status: "success", data: [...] }
         if (mounted) setContacts(Array.isArray(json.data) ? json.data : []);
       } catch (err: any) {
         console.error("Failed to fetch contacts:", err);
-        if (mounted) setError(err.message || "Failed to fetch");
+        if (mounted) setError(err?.message || "Failed to fetch");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -81,12 +80,8 @@ export default function UserManagementPage() {
   function formatForWhatsApp(mobile?: string) {
     const digits = normalizeDigits(mobile);
     if (!digits) return "";
-    // If 10 digits, assume India and prepend 91
     if (digits.length === 10) return `91${digits}`;
-    // If starts with 0 and 11 digits, drop leading 0 and prepend 91
-    if (digits.length === 11 && digits.startsWith("0"))
-      return `91${digits.slice(1)}`;
-    // If already starts with country code (like 91...), return as is
+    if (digits.length === 11 && digits.startsWith("0")) return `91${digits.slice(1)}`;
     return digits;
   }
 
@@ -116,19 +111,15 @@ export default function UserManagementPage() {
       alert("No valid mobile number available to call.");
       return;
     }
-    // using location.href so mobile devices will invoke dialer
     window.location.href = tel;
   }
 
-  // Quick stats derived from contacts
   const stats = useMemo(() => {
     const now = new Date();
     const total = contacts.length;
     const thisMonth = contacts.filter((c) => {
       const d = new Date(c.created_at);
-      return (
-        d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-      );
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }).length;
     const thisWeek = contacts.filter((c) => {
       const d = new Date(c.created_at);
@@ -137,10 +128,7 @@ export default function UserManagementPage() {
     }).length;
     const latest = contacts
       .slice()
-      .sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      )[0];
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
     return { total, thisMonth, thisWeek, latest };
   }, [contacts]);
 
@@ -149,19 +137,16 @@ export default function UserManagementPage() {
     const q = query.toLowerCase();
     return contacts.filter(
       (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.mobile.toLowerCase().includes(q) ||
-        c.message.toLowerCase().includes(q)
+        (c.name || "").toLowerCase().includes(q) ||
+        (c.mobile || "").toLowerCase().includes(q) ||
+        (c.message || "").toLowerCase().includes(q)
     );
   }, [contacts, query]);
 
   function formatDate(iso?: string) {
     if (!iso) return "-";
     const d = new Date(iso);
-    return d.toLocaleString("en-IN", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
+    return d.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
   }
 
   return (
@@ -169,27 +154,7 @@ export default function UserManagementPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-          {/* <p className="text-gray-600 mt-1">Live submissions from public contact form</p> */}
         </div>
-        {/* <Button
-          className="bg-gradient-to-r from-[#FF6B9D] to-[#FF5A8C] hover:from-[#FF5A8C] hover:to-[#FF4979] shadow-lg hover:shadow-xl transition-all duration-300"
-          onClick={() => {
-            // re-fetch manually
-            setLoading(true);
-            setError(null);
-            fetch("https://api.wedmacindia.com/api/public/get-contact-submissions/")
-              .then((r) => {
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                return r.json();
-              })
-              .then((json) => setContacts(Array.isArray(json.data) ? json.data : []))
-              .catch((e) => setError(String(e)))
-              .finally(() => setLoading(false));
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Refresh
-        </Button> */}
       </div>
 
       <Card className="mb-6">
@@ -199,9 +164,7 @@ export default function UserManagementPage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm text-blue-600 font-medium">
-                Total Submissions
-              </p>
+              <p className="text-sm text-blue-600 font-medium">Total Submissions</p>
               <p className="text-2xl font-bold">{stats.total}</p>
               <p className="text-xs text-gray-500">All time</p>
             </div>
@@ -216,15 +179,9 @@ export default function UserManagementPage() {
               <p className="text-xs text-gray-500">Last 7 days</p>
             </div>
             <div className="bg-purple-50 p-4 rounded-lg">
-              <p className="text-sm text-purple-600 font-medium">
-                Latest Submission
-              </p>
-              <p className="text-2xl font-bold">
-                {stats.latest ? stats.latest.name : "-"}
-              </p>
-              <p className="text-xs text-gray-500">
-                {stats.latest ? formatDate(stats.latest.created_at) : "-"}
-              </p>
+              <p className="text-sm text-purple-600 font-medium">Latest Submission</p>
+              <p className="text-2xl font-bold">{stats.latest ? stats.latest.name : "-"}</p>
+              <p className="text-xs text-gray-500">{stats.latest ? formatDate(stats.latest.created_at) : "-"}</p>
             </div>
           </div>
         </CardContent>
@@ -234,17 +191,17 @@ export default function UserManagementPage() {
         <CardHeader className="pb-2">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 w-full">
             <CardTitle>User List</CardTitle>
-            <div className="flex gap-2">
-              <div className="relative">
+            <div className="flex w-full sm:w-auto gap-2 items-center">
+              <div className="relative flex-1 sm:flex-none">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
                 <Input
                   placeholder="Search name / mobile / message..."
-                  className="pl-8 w-64"
+                  className="pl-8 w-full sm:w-64"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
               </div>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" className="hidden sm:inline-flex">
                 <Filter className="h-4 w-4" />
               </Button>
             </div>
@@ -252,15 +209,88 @@ export default function UserManagementPage() {
         </CardHeader>
 
         <CardContent>
-          <div className="overflow-x-auto">
+          {/* MOBILE LIST */}
+          <div className="sm:hidden space-y-3">
             {loading ? (
               <div className="p-6 text-center text-gray-500">Loading...</div>
             ) : error ? (
               <div className="p-6 text-center text-red-500">Error: {error}</div>
             ) : filtered.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">
-                No submissions found.
-              </div>
+              <div className="p-6 text-center text-gray-500">No submissions found.</div>
+            ) : (
+              filtered.map((c) => (
+                <div key={c.id} className="bg-white border rounded-lg p-3 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-10 w-10 flex-shrink-0">
+                      <AvatarImage src={`/placeholder.svg?height=40&width=40`} />
+                      <AvatarFallback className="bg-gradient-to-br from-[#FF6B9D] to-[#FF5A8C] text-white">
+                        {c.name?.charAt(0) ?? "U"}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="font-medium truncate">{c.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{c.mobile}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-400">{formatDate(c.created_at)}</p>
+                        </div>
+                      </div>
+
+                      <p className="mt-2 text-sm text-gray-700 line-clamp-3" title={c.message}>
+                        {c.message}
+                      </p>
+
+                      <div className="mt-3 flex items-center gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard?.writeText(c.mobile || ""); alert("Mobile copied to clipboard"); }}>
+                          Copy
+                        </Button>
+
+                        <Button variant="ghost" size="sm" onClick={() => makeCall(c.mobile)}>
+                          <Phone className="mr-2 h-4 w-4" /> Call
+                        </Button>
+
+                        <Button variant="ghost" size="sm" onClick={() => openWhatsApp(c.mobile, `Hi ${c.name || ""},\n\n${c.message || ""}`)}>
+                          <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
+                        </Button>
+
+                        {/* optional dropdown for more actions */}
+                        <div className="ml-auto">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => { navigator.clipboard?.writeText(c.mobile || ""); alert("Mobile copied to clipboard"); }}>
+                                Copy Mobile
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => makeCall(c.mobile)}>Call</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openWhatsApp(c.mobile, `Hi ${c.name || ""},\n\n${c.message || ""}`)}>Send WhatsApp</DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* DESKTOP TABLE */}
+          <div className="hidden sm:block overflow-x-auto">
+            {loading ? (
+              <div className="p-6 text-center text-gray-500">Loading...</div>
+            ) : error ? (
+              <div className="p-6 text-center text-red-500">Error: {error}</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-6 text-center text-gray-500">No submissions found.</div>
             ) : (
               <Table>
                 <TableHeader>
@@ -274,16 +304,11 @@ export default function UserManagementPage() {
                 </TableHeader>
                 <TableBody>
                   {filtered.map((c) => (
-                    <TableRow
-                      key={c.id}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
+                    <TableRow key={c.id} className="hover:bg-gray-50 transition-colors">
                       <TableCell>
                         <div className="flex items-center">
                           <Avatar className="h-8 w-8 mr-3">
-                            <AvatarImage
-                              src={`/placeholder.svg?height=32&width=32`}
-                            />
+                            <AvatarImage src={`/placeholder.svg?height=32&width=32`} />
                             <AvatarFallback className="bg-gradient-to-br from-[#FF6B9D] to-[#FF5A8C] text-white">
                               {c.name?.charAt(0) ?? "U"}
                             </AvatarFallback>
@@ -302,17 +327,12 @@ export default function UserManagementPage() {
                       </TableCell>
 
                       <TableCell>
-                        <p
-                          className="text-sm truncate max-w-[28ch]"
-                          title={c.message}
-                        >
+                        <p className="text-sm truncate max-w-[40ch]" title={c.message}>
                           {c.message}
                         </p>
                       </TableCell>
 
-                      <TableCell className="text-sm">
-                        {formatDate(c.created_at)}
-                      </TableCell>
+                      <TableCell className="text-sm">{formatDate(c.created_at)}</TableCell>
 
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -327,36 +347,19 @@ export default function UserManagementPage() {
                             <DropdownMenuItem
                               onClick={() => {
                                 navigator.clipboard?.writeText(c.mobile || "");
-                                // small UI hint would be better in real app
                                 alert("Mobile copied to clipboard");
                               }}
                             >
                               Copy Mobile
                             </DropdownMenuItem>
 
-                            {/* NEW: Call action */}
-                            <DropdownMenuItem
-                              onClick={() => {
-                                makeCall(c.mobile);
-                              }}
-                            >
-                              Call
-                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => makeCall(c.mobile)}>Call</DropdownMenuItem>
 
-                            {/* NEW: WhatsApp action */}
-                            <DropdownMenuItem
-                              onClick={() => {
-                                openWhatsApp(
-                                  c.mobile,
-                                  `Hi ${c.name || ""},\n\n${c.message || ""}`
-                                );
-                              }}
-                            >
+                            <DropdownMenuItem onClick={() => openWhatsApp(c.mobile, `Hi ${c.name || ""},\n\n${c.message || ""}`)}>
                               Send WhatsApp
                             </DropdownMenuItem>
 
                             <DropdownMenuSeparator />
-                            {/* <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem> */}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -368,15 +371,10 @@ export default function UserManagementPage() {
           </div>
 
           <div className="flex items-center justify-end space-x-2 py-4">
-            {/* simple pagination placeholders */}
             <Button variant="outline" size="sm">
               Previous
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-[#FF6B9D] text-white hover:bg-[#FF5A8C]"
-            >
+            <Button variant="outline" size="sm" className="bg-[#FF6B9D] text-white hover:bg-[#FF5A8C]">
               1
             </Button>
             <Button variant="outline" size="sm">

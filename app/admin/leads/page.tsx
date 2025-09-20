@@ -226,7 +226,7 @@ export default function LeadManagement() {
         <TabsContent value={activeTab}>
           <Card>
             <CardHeader className="pb-2">
-              <div className="flex justify-between items-center">
+              <div className="md:flex block justify-between items-center">
                 <CardTitle>Lead List</CardTitle>
                 <div className="flex gap-2">
                   <div className="relative">

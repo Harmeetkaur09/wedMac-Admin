@@ -276,7 +276,7 @@ const handleVerifyOtp = async (e?: React.FormEvent) => {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-4">
+              <div className="md:flex block items-center justify-between gap-4">
                 <Button
                   type="button"
                   variant="ghost"

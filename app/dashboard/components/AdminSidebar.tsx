@@ -60,7 +60,7 @@ const sidebarItems = [
   },
   {
     title: "Payment Management",
-    href: "/dashboard/payments",
+    href: "/dashboard/payments/plans",
     icon: <CreditCard className="h-5 w-5" />,
     subItems: [
       { title: "Subscription Plans", href: "/dashboard/payments/plans" },
@@ -70,7 +70,7 @@ const sidebarItems = [
   },
   {
     title: "Content Management",
-    href: "/dashboard/content",
+    href: "/dashboard/content/pages",
     icon: <FileText className="h-5 w-5" />,
     subItems: [
       // { title: "WYSIWYG Editor", href: "/dashboard/content/editor" },
@@ -148,17 +148,17 @@ export default function AdminSidebar() {
     }
   }}
 >
-  <Link
-    href={item.href}
-    className="flex items-center space-x-3 flex-1"
+<div
+  className="flex items-center space-x-3 flex-1"
+>
+  <span
+    className={`transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`}
   >
-    <span
-      className={`transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`}
-    >
-      {item.icon}
-    </span>
-    <span className="font-medium text-sm">{item.title}</span>
-  </Link>
+    {item.icon}
+  </span>
+  <span className="font-medium text-sm">{item.title}</span>
+</div>
+
 
   {hasSubItems && (
     <div className={`transition-transform duration-300 ${isItemExpanded ? "rotate-180" : ""}`}>

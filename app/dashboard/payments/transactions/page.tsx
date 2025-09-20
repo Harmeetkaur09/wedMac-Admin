@@ -5,16 +5,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Filter, Search, Download, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
+import { Filter, Search, Download, TrendingUp, TrendingDown, RefreshCw, MoreHorizontal } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type PaymentRecord = {
   id: number;
   artist_id: number;
   artist_name: string;
-  plan: string;
+  plan: string | null;
   amount: number | null;
   payment_status: string; // pending | success | failed | etc
   is_active: boolean;
@@ -22,7 +30,7 @@ type PaymentRecord = {
   end_date: string | null;
   created_at: string | null;
   razorpay_order_id?: string | null;
-  payment_method?: string | null; // optional fallback if API provides
+  payment_method?: string | null;
 };
 
 export default function TransactionHistoryPage() {
@@ -33,11 +41,9 @@ export default function TransactionHistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState<string>("");
 
-  // pagination
   const [page, setPage] = useState<number>(1);
-  const pageSize = 20; // adjust if API returns different page size
+  const pageSize = 20;
 
-  // filters
   const [dateRange, setDateRange] = useState<string>("last30");
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>("");
@@ -45,17 +51,14 @@ export default function TransactionHistoryPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [paymentMethod, setPaymentMethod] = useState<string>("all");
 
-  // token: tries sessionStorage.accessToken, otherwise use placeholder
-  const AUTH_TOKEN = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") || "<PASTE_TOKEN_HERE>" : "";
+  const AUTH_TOKEN = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") || "" : "";
 
   function buildFetchUrl(p = 1) {
     const url = new URL("https://api.wedmacindia.com/api/artists/admin/payments/history/");
     url.searchParams.set("page", String(p));
-    // If API supports server-side filtering by payment_status or plan, include those params.
-    // These are best-effort — if the backend ignores unknown params it's safe.
     if (statusFilter && statusFilter !== "all") url.searchParams.set("payment_status", statusFilter);
-    if (txType && txType !== "all") url.searchParams.set("plan", txType);
-    // For custom dates pass start/end as ISO if supplied
+    if (txType && txType !== "all" && txType !== "subscriptions" && txType !== "bookings")
+      url.searchParams.set("plan", txType);
     if (dateRange === "custom" && customStart) url.searchParams.set("start_date", customStart);
     if (dateRange === "custom" && customEnd) url.searchParams.set("end_date", customEnd);
     return url.toString();
@@ -66,18 +69,14 @@ export default function TransactionHistoryPage() {
     setError(null);
     try {
       const url = buildFetchUrl(p);
-
       const res = await fetch(url, {
         headers: {
           "Content-Type": "application/json",
           ...(AUTH_TOKEN ? { Authorization: `Bearer ${AUTH_TOKEN}` } : {}),
         },
       });
-
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-
-      // Expecting { total: number, results: PaymentRecord[] }
       setTotal(typeof json.total === "number" ? json.total : 0);
       setTransactions(Array.isArray(json.results) ? json.results : []);
     } catch (e: any) {
@@ -91,13 +90,10 @@ export default function TransactionHistoryPage() {
   }
 
   useEffect(() => {
-    // fetch when page or server-side-able filters change
     fetchPayments(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, statusFilter, txType, customStart, customEnd]);
 
-  // client-side filtering (applied after fetch). This ensures filters always work even
-  // if the API doesn't support the specific query params.
   useEffect(() => {
     function applyFilters(list: PaymentRecord[]) {
       const now = new Date();
@@ -124,40 +120,37 @@ export default function TransactionHistoryPage() {
         if (customStart) start = new Date(customStart);
         if (customEnd) {
           end = new Date(customEnd);
-          // include entire day
           end.setDate(end.getDate() + 1);
         }
       }
 
       return list.filter((t) => {
-        // search
         if (query) {
           const q = query.toLowerCase();
-          const matchesSearch = String(t.id).includes(q) || (t.artist_name || "").toLowerCase().includes(q) || (t.plan || "").toLowerCase().includes(q) || (t.razorpay_order_id || "").toLowerCase().includes(q);
+          const matchesSearch =
+            String(t.id).includes(q) ||
+            (t.artist_name || "").toLowerCase().includes(q) ||
+            (t.plan || "").toLowerCase().includes(q) ||
+            (t.razorpay_order_id || "").toLowerCase().includes(q);
           if (!matchesSearch) return false;
         }
 
-        // status
         if (statusFilter !== "all" && (t.payment_status || "").toLowerCase() !== statusFilter.toLowerCase()) return false;
 
-        // txType -> we map 'subscriptions' to any record with plan present; 'bookings' would be if plan is empty
         if (txType !== "all") {
           if (txType === "subscriptions") {
             if (!t.plan) return false;
           } else if (txType === "bookings") {
             if (t.plan) return false;
           } else {
-            // allow direct plan name match
             if ((t.plan || "").toLowerCase() !== txType.toLowerCase()) return false;
           }
         }
 
-        // payment method (only if field exists in response)
         if (paymentMethod !== "all") {
           if (((t.payment_method || "") as string).toLowerCase() !== paymentMethod.toLowerCase()) return false;
         }
 
-        // date range check (use created_at primarily)
         if (start || end) {
           const d = t.created_at ? new Date(t.created_at) : null;
           if (!d) return false;
@@ -173,7 +166,6 @@ export default function TransactionHistoryPage() {
     setFilteredTransactions(result);
   }, [transactions, query, dateRange, customStart, customEnd, txType, statusFilter, paymentMethod]);
 
-  // derived stats from filtered results
   const stats = useMemo(() => {
     const totalPayments = filteredTransactions.length;
     const pending = filteredTransactions.filter((t) => t.payment_status === "pending").length;
@@ -204,12 +196,6 @@ export default function TransactionHistoryPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Transaction History</h1>
-          {/* <p className="text-gray-600 mt-1">Payments history (filters apply to server when supported; client-side fallback always active)</p> */}
-        </div>
-        <div className="flex gap-2">
-    
-         
-      
         </div>
       </div>
 
@@ -248,13 +234,11 @@ export default function TransactionHistoryPage() {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <label className="text-sm font-medium mb-1 block">Date Range</label>
-              <Select defaultValue={dateRange} onValueChange={(v) => { setDateRange(v); if (v !== 'custom') { setCustomStart(''); setCustomEnd(''); } setPage(1); }}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+              <Select defaultValue={dateRange} onValueChange={(v) => { setDateRange(v); if (v !== "custom") { setCustomStart(""); setCustomEnd(""); } setPage(1); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="today">Today</SelectItem>
                   <SelectItem value="last7">Last 7 days</SelectItem>
@@ -275,16 +259,15 @@ export default function TransactionHistoryPage() {
             <div>
               <label className="text-sm font-medium mb-1 block">Transaction Type</label>
               <Select defaultValue={txType} onValueChange={(v) => { setTxType(v); setPage(1); }}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-  
                   <SelectItem value="pro">Pro</SelectItem>
                   <SelectItem value="premium">Premium</SelectItem>
                   <SelectItem value="standard">Standard</SelectItem>
                   <SelectItem value="basic">Basic</SelectItem>
+                  <SelectItem value="subscriptions">Subscriptions</SelectItem>
+                  <SelectItem value="bookings">Bookings</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -292,9 +275,7 @@ export default function TransactionHistoryPage() {
             <div>
               <label className="text-sm font-medium mb-1 block">Status</label>
               <Select defaultValue={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="success">Success</SelectItem>
@@ -306,8 +287,10 @@ export default function TransactionHistoryPage() {
 
             <div>
               <label className="text-sm font-medium mb-1 block">Search</label>
-                {/* <Search className="relative left-2 top-2.5 text-gray-400" /> */}
-            <Input placeholder="Search by id / artist / plan..." className="pl-8" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <div className="relative">
+                <Search className="absolute left-2 top-3 h-4 w-4 text-gray-400" />
+                <Input placeholder="Search by id / artist / plan..." className="pl-8 w-full" value={query} onChange={(e) => setQuery(e.target.value)} />
+              </div>
             </div>
           </div>
         </CardContent>
@@ -316,12 +299,68 @@ export default function TransactionHistoryPage() {
       <Tabs defaultValue="all" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="all">All Transactions</TabsTrigger>
- 
         </TabsList>
+
         <TabsContent value="all">
           <Card>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              {/* MOBILE: card list */}
+              <div className="sm:hidden space-y-3 p-3">
+                {loading ? (
+                  <div className="p-6 text-center text-gray-500">Loading...</div>
+                ) : error ? (
+                  <div className="p-6 text-center text-red-500">Error: {error}</div>
+                ) : filteredTransactions.length === 0 ? (
+                  <div className="p-6 text-center text-gray-500">No transactions found.</div>
+                ) : (
+                  filteredTransactions.map((t) => (
+                    <div key={t.id} className="bg-white border rounded-lg p-3 shadow-sm">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-medium">#{t.id} — {t.artist_name ?? "-"}</p>
+                          <p className="text-sm text-gray-600">{t.plan ?? "—"}</p>
+                          <p className="text-sm mt-1">{t.amount != null ? `₹${t.amount}` : "-"}</p>
+                        </div>
+
+                        <div className="text-right space-y-1">
+                          <div>{statusBadge(t.payment_status)}</div>
+                          <div className="text-xs text-gray-400">{formatDate(t.created_at)}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <div className="text-sm text-gray-600">
+                          <div>Start: <span className="font-medium">{formatDate(t.start_date)}</span></div>
+                          <div>End: <span className="font-medium">{formatDate(t.end_date)}</span></div>
+                          <div className="truncate">Razorpay: {t.razorpay_order_id ?? "-"}</div>
+                        </div>
+
+                        <div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => { /* implement download/invoice logic */ alert("Download not implemented"); }}>
+                                Download
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => alert(`View record ${t.id}`)}>View</DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => navigator.clipboard?.writeText(String(t.razorpay_order_id || ""))}>Copy Razorpay ID</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* DESKTOP: table */}
+              <div className="hidden sm:block overflow-x-auto">
                 {loading ? (
                   <div className="p-6 text-center text-gray-500">Loading...</div>
                 ) : error ? (
@@ -341,22 +380,20 @@ export default function TransactionHistoryPage() {
                         <TableHead>End</TableHead>
                         <TableHead>Created</TableHead>
                         <TableHead>Razorpay</TableHead>
-                        {/* <TableHead>Method</TableHead> */}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredTransactions.map((t) => (
                         <TableRow key={t.id} className="hover:bg-gray-50 transition-colors">
-                          <TableCell className="font-medium">{t.id}</TableCell>
+                          <TableCell className="font-medium">#{t.id}</TableCell>
                           <TableCell>{t.artist_name}</TableCell>
-                          <TableCell>{t.plan}</TableCell>
+                          <TableCell>{t.plan ?? "-"}</TableCell>
                           <TableCell>{statusBadge(t.payment_status)}</TableCell>
                           <TableCell>{t.is_active ? <Badge className="bg-green-100 text-green-800">Active</Badge> : <Badge className="bg-gray-100 text-gray-800">Inactive</Badge>}</TableCell>
                           <TableCell className="text-sm">{formatDate(t.start_date)}</TableCell>
                           <TableCell className="text-sm">{formatDate(t.end_date)}</TableCell>
                           <TableCell className="text-sm">{formatDate(t.created_at)}</TableCell>
                           <TableCell className="text-sm">{t.razorpay_order_id ?? "-"}</TableCell>
-                          {/* <TableCell className="text-sm">{t.payment_method ?? "-"}</TableCell> */}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -364,44 +401,14 @@ export default function TransactionHistoryPage() {
                 )}
               </div>
 
-              <div className="flex items-center justify-between space-x-2 py-4 px-4">
-                <div className="text-sm text-gray-600">Showing page {page} of {totalPages} • {filteredTransactions.length} records (on current page)</div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 py-4 px-4">
+                <div className="text-sm text-gray-600">Showing page {page} of {totalPages} • {filteredTransactions.length} records</div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                    Previous
-                  </Button>
-                  <Button variant="outline" size="sm" className="bg-[#FF6B9D] text-white hover:bg-[#FF5A8C]" onClick={() => setPage(1)}>
-                    1
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
-                    Next
-                  </Button>
+                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</Button>
+                  <Button variant="outline" size="sm" className="bg-[#FF6B9D] text-white hover:bg-[#FF5A8C]" onClick={() => setPage(1)}>1</Button>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="subscriptions">
-          <Card>
-            <CardContent className="p-6">
-              <p>Subscription transactions will be displayed here. Use filters above to narrow down.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="pending">
-          <Card>
-            <CardContent className="p-6">
-              <p>Pending payments only. (Use filter or search to view specific records.)</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="successful">
-          <Card>
-            <CardContent className="p-6">
-              <p>Successful payments only.</p>
             </CardContent>
           </Card>
         </TabsContent>

@@ -26,7 +26,10 @@ type Claim = {
   details?: string | null;
   status?: "pending" | "approved" | "rejected" | string;
   created_at?: string | null;
-  // any other fields returned by API
+  proof_documents?: { id?: string | number; file_url?: string }[] | null;
+  lead_first_name?: string | null;
+  lead_last_name?: string | null;
+  lead_phone?: string | null;
   [k: string]: any;
 };
 
@@ -40,21 +43,21 @@ export default function FalseClaimsAdminPage() {
   const perPage = 10;
   const [counts, setCounts] = useState({ all: 0, pending: 0, approved: 0, rejected: 0 });
 
-  // simple modal state for resolve action
   const [modalOpen, setModalOpen] = useState(false);
   const [activeClaim, setActiveClaim] = useState<Claim | null>(null);
   const [resolveStatus, setResolveStatus] = useState<"approved" | "rejected">("approved");
   const [adminNote, setAdminNote] = useState("");
   const [resolving, setResolving] = useState(false);
 
-  const DEFAULT_TOKEN =
-    typeof window !== "undefined"
-      ? undefined
-      : ""; // no server-side token here; component will read sessionStorage at runtime
+  // track expanded cards on mobile
+  const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>({});
 
   const getAuthHeader = () => {
     if (typeof window === "undefined") return "";
-    const stored = sessionStorage.getItem("accessToken") || sessionStorage.getItem("token") || sessionStorage.getItem("authToken");
+    const stored =
+      sessionStorage.getItem("accessToken") ||
+      sessionStorage.getItem("token") ||
+      sessionStorage.getItem("authToken");
     return stored ? `Bearer ${stored}` : "";
   };
 
@@ -65,9 +68,10 @@ export default function FalseClaimsAdminPage() {
       const url = new URL("https://api.wedmacindia.com/api/leads/false-claims/admin/");
       if (status && status !== "all") url.searchParams.set("status", status);
 
+      const auth = getAuthHeader();
       const res = await fetch(url.toString(), {
         headers: {
-          Authorization: getAuthHeader(),
+          ...(auth ? { Authorization: auth } : {}),
           "Content-Type": "application/json",
         },
         cache: "no-store",
@@ -80,49 +84,9 @@ export default function FalseClaimsAdminPage() {
 
       const json = await res.json();
 
-      // Expecting shape: { claims: [...], counts: { all, pending, approved, rejected } }
- let list: Claim[] = [];
-if (Array.isArray(json?.claims)) {
-  list = json.claims.map((c: any) => ({
-    ...c,
-    claimant_name: `${c.lead_first_name || ""} ${c.lead_last_name || ""}`.trim(),
-    claimant_phone: c.lead_phone,
-  }));
-}
-
-
-      setClaims(list);
-
-      if (json?.counts) {
-        setCounts({
-          all: Number(json.counts.all || list.length || 0),
-          pending: Number(json.counts.pending || 0),
-          approved: Number(json.counts.approved || 0),
-          rejected: Number(json.counts.rejected || 0),
-        });
-      } else {
-        // derive counts client-side if counts not provided
-        const c = { all: list.length, pending: 0, approved: 0, rejected: 0 };
-        for (const cl of list) {
-          const s = (cl.status || "").toLowerCase();
-          if (s === "pending") c.pending++;
-          else if (s === "approved") c.approved++;
-          else if (s === "rejected") c.rejected++;
-        }
-        setCounts(c);
-      }
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Failed to load claims");
-      setClaims([]);
-    } finally {
-      setLoading(false);
-      setPage(1);
-    }
-  };
+    let list: Claim[] = []; if (Array.isArray(json?.claims)) { list = json.claims.map((c: any) => ({ ...c, claimant_name: `${c.lead_first_name || ""} ${c.lead_last_name || ""}`.trim(), claimant_phone: c.lead_phone, })); } setClaims(list); if (json?.counts) { setCounts({ all: Number(json.counts.all || list.length || 0), pending: Number(json.counts.pending || 0), approved: Number(json.counts.approved || 0), rejected: Number(json.counts.rejected || 0), }); } else {  const c = { all: list.length, pending: 0, approved: 0, rejected: 0 }; for (const cl of list) { const s = (cl.status || "").toLowerCase(); if (s === "pending") c.pending++; else if (s === "approved") c.approved++; else if (s === "rejected") c.rejected++; } setCounts(c); } } catch (err: any) { console.error(err); setError(err.message || "Failed to load claims"); setClaims([]); } finally { setLoading(false); setPage(1); } };
 
   useEffect(() => {
-    // On mount, fetch all claims
     fetchClaims(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -132,7 +96,7 @@ if (Array.isArray(json?.claims)) {
     return claims.filter((c) => {
       if (statusFilter !== "all" && (c.status || "").toLowerCase() !== statusFilter.toLowerCase()) return false;
       if (!q) return true;
-      const name = `${c.claimant_name ?? ""}`.toLowerCase();
+      const name = `${c.claimant_name ?? c.lead_first_name ?? ""}`.toLowerCase();
       return (
         name.includes(q) ||
         String(c.claimant_phone ?? "").toLowerCase().includes(q) ||
@@ -170,10 +134,11 @@ if (Array.isArray(json?.claims)) {
     try {
       const url = `https://api.wedmacindia.com/api/leads/false-claims/${activeClaim.id}/resolve/`;
       const body = { status: resolveStatus, admin_note: adminNote };
+      const auth = getAuthHeader();
       const res = await fetch(url, {
         method: "PATCH",
         headers: {
-          Authorization: getAuthHeader(),
+          ...(auth ? { Authorization: auth } : {}),
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
@@ -187,17 +152,15 @@ if (Array.isArray(json?.claims)) {
 
       toast.success("Claim updated");
 
-      // update local state: set claim status, update counts
+      // update local state
       setClaims((prev) => prev.map((c) => (c.id === activeClaim.id ? { ...c, status: resolveStatus } : c)));
       setCounts((prev) => {
         const next = { ...prev };
-        // decrement previous status if present
         const prevStatus = (activeClaim.status || "").toLowerCase();
         if (prevStatus && prevStatus in next) {
           // @ts-ignore
           next[prevStatus] = Math.max(0, (next as any)[prevStatus] - 1);
         }
-        // increment new status
         if (resolveStatus in next) {
           // @ts-ignore
           next[resolveStatus] = (next as any)[resolveStatus] + 1;
@@ -222,6 +185,9 @@ if (Array.isArray(json?.claims)) {
     return <Badge className="bg-gray-50 text-gray-800">{status || "unknown"}</Badge>;
   };
 
+  const toggleExpand = (id: number) => setExpandedIds((s) => ({ ...s, [id]: !s[id] }));
+  const formatDate = (iso?: string | null) => (iso ? new Date(iso).toISOString().split("T")[0] : "-");
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -229,7 +195,6 @@ if (Array.isArray(json?.claims)) {
           <h1 className="text-2xl font-bold">False Claims — Admin</h1>
           <p className="text-sm text-gray-600">Review and resolve reported false claims</p>
         </div>
-     
       </div>
 
       <Card>
@@ -260,17 +225,26 @@ if (Array.isArray(json?.claims)) {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between w-full gap-4">
-            <div className="flex items-center gap-3">
-              <Input
-                placeholder="Search claims..."
-                className="w-64"
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-3">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="flex-1 sm:flex-none">
+                <Input
+                  placeholder="Search claims..."
+                  className="w-full"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </div>
+
               <select
                 value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value as any); setPage(1); }}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as any);
+                  setPage(1);
+                }}
                 className="px-2 py-1 rounded border"
               >
                 <option value="all">All</option>
@@ -281,6 +255,7 @@ if (Array.isArray(json?.claims)) {
             </div>
           </div>
         </CardHeader>
+
         <CardContent>
           {loading ? (
             <div className="py-8 text-center">Loading claims…</div>
@@ -288,7 +263,68 @@ if (Array.isArray(json?.claims)) {
             <div className="py-4 text-red-600">{error}</div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              {/* MOBILE: cards */}
+              <div className="sm:hidden space-y-3">
+                {paginated.length === 0 ? (
+                  <div className="py-6 text-center text-gray-500">No claims found</div>
+                ) : (
+                  paginated.map((c) => (
+                    <div key={c.id} className="bg-white border rounded-lg p-3 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center justify-between gap-12">
+                            <div>
+                              <p className="font-medium">#{c.id} — {c.claimant_name ?? `${c.lead_first_name ?? "-"} ${c.lead_last_name ?? ""}`.trim()}</p>
+                              <p className="text-xs text-gray-500">{c.claimant_phone ?? c.claimant_email ?? "-"}</p>
+                            </div>
+                            <div className="item-end">{renderBadge(c.status)}</div>
+                          </div>
+
+                          <div className="mt-2">
+                            <p className="text-sm text-gray-700 line-clamp-2">{c.reason ?? c.details ?? "-"}</p>
+                          </div>
+
+                          {expandedIds[c.id] && (
+                            <>
+                              <div className="mt-3 text-sm text-gray-700 whitespace-pre-wrap">{c.details ?? c.reason ?? "-"}</div>
+
+                              {Array.isArray(c.proof_documents) && c.proof_documents.length > 0 && (
+                                <div className="mt-3 flex gap-2 overflow-x-auto">
+                                  {c.proof_documents.map((doc: any) => (
+                                    <a key={String(doc.id ?? doc.file_url)} href={doc.file_url} target="_blank" rel="noreferrer" className="flex-shrink-0">
+                                      <img src={doc.file_url} alt="proof" className="w-20 h-20 object-cover rounded border" />
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+
+                              <div className="mt-3 text-xs text-gray-400">Created: {formatDate(c.created_at)}</div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <div>
+                          <button
+                            className="text-sm text-[#FF6B9D] hover:underline"
+                            onClick={() => toggleExpand(c.id)}
+                          >
+                            {expandedIds[c.id] ? "Hide details" : "Read details"}
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" onClick={() => openResolveModal(c)}>Resolve</Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* DESKTOP: table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -306,41 +342,24 @@ if (Array.isArray(json?.claims)) {
                       <TableRow key={c.id} className="hover:bg-gray-50">
                         <TableCell>{c.id}</TableCell>
                         <TableCell>
-                          <div className="font-medium">{c.lead_first_name || "-"}</div>
-                          <div className="text-xs text-gray-500">{c.lead_last_name}</div>
+                          <div className="font-medium">{c.lead_first_name ?? c.claimant_name ?? "-"}</div>
+                          <div className="text-xs text-gray-500">{c.lead_last_name ?? ""}</div>
                         </TableCell>
                         <TableCell>
-                          <div className="text-xs">{c.lead_phone ?? "-"}</div>
-                          {/* <div className="text-xs text-gray-500">{c.lead_email ?? "-"}</div> */}
+                          <div className="text-xs">{c.lead_phone ?? c.claimant_phone ?? "-"}</div>
                         </TableCell>
-<TableCell className="max-w-md break-words text-sm">
-  <div>{c.reason ?? c.details ?? "-"}</div>
-  {Array.isArray(c.proof_documents) && c.proof_documents.length > 0 && (
-    <div className="flex flex-wrap gap-2 mt-2">
-      {c.proof_documents.map((doc: any) =>
-        doc.file_type === "image" ? (
-          <a key={doc.id} href={doc.file_url} target="_blank" rel="noopener noreferrer">
-            <img
-              src={doc.file_url}
-              alt={doc.file_name}
-              className="w-16 h-16 object-cover rounded border"
-            />
-          </a>
-        ) : (
-          <a
-            key={doc.id}
-            href={doc.file_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-blue-600 underline"
-          >
-            {doc.file_name}
-          </a>
-        )
-      )}
-    </div>
-  )}
-</TableCell>
+                        <TableCell className="max-w-md break-words text-sm">
+                          <div>{c.reason ?? c.details ?? "-"}</div>
+                          {Array.isArray(c.proof_documents) && c.proof_documents.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {c.proof_documents.map((doc: any) => (
+                                <a key={String(doc.id ?? doc.file_url)} href={doc.file_url} target="_blank" rel="noopener noreferrer">
+                                  <img src={doc.file_url} alt="proof" className="w-16 h-16 object-cover rounded border" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>{c.created_at ? new Date(c.created_at).toISOString().split("T")[0] : "-"}</TableCell>
                         <TableCell>{renderBadge(c.status)}</TableCell>
                         <TableCell className="text-right">
@@ -348,7 +367,6 @@ if (Array.isArray(json?.claims)) {
                             <Button size="sm" onClick={() => openResolveModal(c)}>Resolve</Button>
                           </div>
                         </TableCell>
-                        
                       </TableRow>
                     ))}
 

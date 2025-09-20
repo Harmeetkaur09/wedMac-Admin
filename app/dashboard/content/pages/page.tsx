@@ -20,8 +20,15 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 type Comment = {
   id: number;
@@ -59,85 +66,110 @@ export default function ArtistCommentsPage() {
     rating: 1,
   });
 
-  const token = sessionStorage.getItem("accessToken");
+  // track expanded cards on mobile
+  const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>({});
+
+  const getToken = () =>
+    typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
 
   // Fetch approved artists
   useEffect(() => {
+    let mounted = true;
     async function fetchArtists() {
       try {
+        const token = getToken();
         const res = await fetch(
           "https://api.wedmacindia.com/api/admin/artists/?status=approved",
           {
-            headers: { "Content-Type": "application/json", ...(token && { Authorization: `Bearer ${token}` }) },
+            headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
           }
         );
+        if (!res.ok) {
+          console.warn("fetchArtists failed:", res.status);
+          if (!mounted) return;
+          setArtists([]);
+          return;
+        }
         const data = await res.json();
-        setArtists(Array.isArray(data) ? data : []);
+        if (mounted) setArtists(Array.isArray(data) ? data : data.results ?? []);
       } catch (err) {
         console.error(err);
       }
     }
     fetchArtists();
-  }, [token]);
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Fetch comments
   useEffect(() => {
+    let mounted = true;
     async function fetchComments() {
       setLoading(true);
       setError(null);
       try {
+        const token = getToken();
         const url = selectedArtist
           ? `https://api.wedmacindia.com/api/artist-comments/admin/comments/${selectedArtist}/`
           : "https://api.wedmacindia.com/api/artist-comments/admin/comments/";
 
         const res = await fetch(url, {
-          headers: { "Content-Type": "application/json", ...(token && { Authorization: `Bearer ${token}` }) },
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        setComments(Array.isArray(data) ? data : []);
+        if (mounted) setComments(Array.isArray(data) ? data : data.results ?? []);
       } catch (err: any) {
-        setError(err.message || "Failed to fetch comments");
+        console.error("fetchComments:", err);
+        if (mounted) setError(err?.message || "Failed to fetch comments");
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     }
     fetchComments();
-  }, [selectedArtist, token]);
+    return () => {
+      mounted = false;
+    };
+  }, [selectedArtist]);
 
   const filtered = useMemo(() => {
     if (!query) return comments;
     const q = query.toLowerCase();
     return comments.filter(
       (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.phone_number.toLowerCase().includes(q) ||
-        c.comment.toLowerCase().includes(q)
+        (c.name || "").toLowerCase().includes(q) ||
+        (c.phone_number || "").toLowerCase().includes(q) ||
+        (c.comment || "").toLowerCase().includes(q)
     );
   }, [comments, query]);
 
   function formatDate(iso?: string) {
     if (!iso) return "-";
-    return new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+    try {
+      return new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+    } catch {
+      return iso;
+    }
   }
 
-  // Delete
-async function deleteComment(id: number) {
-  if (!confirm("Are you sure you want to delete this comment?")) return;
-  try {
-    const res = await fetch(
-      `https://api.wedmacindia.com/api/artist-comments/admin/delete-comment/${id}/`,
-      { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    setComments((prev) => prev.filter((c) => c.id !== id));
-    alert("Comment deleted successfully!"); // Success message
-  } catch {
-    alert("Failed to delete comment");
+  async function deleteComment(id: number) {
+    if (!confirm("Are you sure you want to delete this comment?")) return;
+    try {
+      const token = getToken();
+      const res = await fetch(
+        `https://api.wedmacindia.com/api/artist-comments/admin/delete-comment/${id}/`,
+        { method: "DELETE", headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setComments((prev) => prev.filter((c) => c.id !== id));
+      alert("Comment deleted successfully!");
+    } catch (err) {
+      console.error("deleteComment failed:", err);
+      alert("Failed to delete comment");
+    }
   }
-}
 
-  // Open edit dialog
   function openEdit(comment: Comment) {
     setEditingComment(comment);
     setEditForm({
@@ -150,32 +182,35 @@ async function deleteComment(id: number) {
     setEditDialogOpen(true);
   }
 
-  // Submit update
- async function submitEdit() {
-  if (!editingComment) return;
-  try {
-    const res = await fetch(
-      `https://api.wedmacindia.com/api/artist-comments/admin/update-comment/${editingComment.id}/`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(editForm),
-      }
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const updated = await res.json();
-    setComments((prev) =>
-      prev.map((c) => (c.id === editingComment.id ? { ...c, ...editForm } : c))
-    );
-    setEditDialogOpen(false);
-    alert("Comment updated successfully!"); // Success message
-  } catch {
-    alert("Failed to update comment");
+  async function submitEdit() {
+    if (!editingComment) return;
+    try {
+      const token = getToken();
+      const res = await fetch(
+        `https://api.wedmacindia.com/api/artist-comments/admin/update-comment/${editingComment.id}/`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(editForm),
+        }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // update local state
+      setComments((prev) => prev.map((c) => (c.id === editingComment.id ? { ...c, ...editForm } as Comment : c)));
+      setEditDialogOpen(false);
+      alert("Comment updated successfully!");
+    } catch (err) {
+      console.error("submitEdit failed:", err);
+      alert("Failed to update comment");
+    }
   }
-}
+
+  const toggleExpand = (id: number) => {
+    setExpandedIds((s) => ({ ...s, [id]: !s[id] }));
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -193,6 +228,9 @@ async function deleteComment(id: number) {
               <p className="text-sm text-green-600 font-medium">Artists</p>
               <p className="text-2xl font-bold">{artists.length}</p>
             </div>
+            {/* placeholders to keep grid consistent on larger screens */}
+            <div className="hidden md:block" />
+            <div className="hidden md:block" />
           </div>
         </CardContent>
       </Card>
@@ -200,9 +238,9 @@ async function deleteComment(id: number) {
       <Card>
         <CardHeader className="pb-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <CardTitle>Comments</CardTitle>
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center w-full sm:w-auto">
             <select
-              className="border px-2 py-1 rounded"
+              className="w-full sm:w-auto border px-2 py-1 rounded"
               value={selectedArtist ?? ""}
               onChange={(e) => setSelectedArtist(e.target.value ? Number(e.target.value) : null)}
             >
@@ -214,23 +252,91 @@ async function deleteComment(id: number) {
               ))}
             </select>
 
-            <div className="relative">
+            <div className="relative flex-1 sm:flex-none w-full sm:w-64">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="Search name / phone / comment..."
-                className="pl-8 w-64"
+                className="pl-8 w-full"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="icon">
+
+            <Button variant="outline" size="icon" className="self-start">
               <Filter className="h-4 w-4" />
             </Button>
           </div>
         </CardHeader>
 
         <CardContent>
-          <div className="overflow-x-auto">
+          {/* MOBILE: cards */}
+          <div className="sm:hidden space-y-3">
+            {loading ? (
+              <div className="p-6 text-center text-gray-500">Loading...</div>
+            ) : error ? (
+              <div className="p-6 text-center text-red-500">Error: {error}</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-6 text-center text-gray-500">No comments found.</div>
+            ) : (
+              filtered.map((c) => (
+                <div key={c.id} className="bg-white border rounded-lg p-3 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{c.artist_name}</p>
+                      <p className="text-sm text-gray-600 truncate">{c.name} • {c.phone_number}</p>
+                      <p className="text-xs text-gray-400 mt-1">{formatDate(c.created_at)}</p>
+
+                      <div className="mt-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-gray-100 text-gray-800">Rating {c.rating}</Badge>
+                          <button
+                            aria-label={expandedIds[c.id] ? "Collapse" : "Expand"}
+                            onClick={() => toggleExpand(c.id)}
+                            className="text-sm text-[#FF6B9D] hover:underline"
+                          >
+                            {expandedIds[c.id] ? "Hide" : "Read"}
+                          </button>
+                        </div>
+
+                        {expandedIds[c.id] && (
+                          <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{c.comment}</p>
+                        )}
+
+                        {!expandedIds[c.id] && (
+                          <p className="mt-2 text-sm text-gray-700 line-clamp-2" title={c.comment}>
+                            {c.comment}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-1">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => openEdit(c)}>
+                              <Edit className="mr-2 h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => deleteComment(c.id)}>Delete</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* DESKTOP: table */}
+          <div className="hidden sm:block overflow-x-auto">
             {loading ? (
               <div className="p-6 text-center text-gray-500">Loading...</div>
             ) : error ? (
@@ -257,17 +363,16 @@ async function deleteComment(id: number) {
                       <TableCell>{c.name}</TableCell>
                       <TableCell>{c.phone_number}</TableCell>
                       <TableCell>
-             <div className="relative group flex items-center gap-1">
-  <span className="truncate max-w-[28ch]">{c.comment}</span>
-  <Info className="h-4 w-4 text-gray-400" />
-  <div className="absolute top-full mb-1 hidden group-hover:block bg-gray-700 text-white text-xs rounded px-2 py-1 z-10 w-max max-w-xs">
-    {c.comment}
-  </div>
-</div>
-</TableCell>
-
+                        <div className="relative group flex items-center gap-1">
+                          <span className="truncate max-w-[28ch]">{c.comment}</span>
+                          <Info className="h-4 w-4 text-gray-400" />
+                          <div className="absolute top-full left-0 mt-1 hidden group-hover:block bg-gray-700 text-white text-xs rounded px-2 py-1 z-10 w-max max-w-xs">
+                            {c.comment}
+                          </div>
+                        </div>
+                      </TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{c.rating}</Badge>
+                        <Badge className="bg-gray-100 text-gray-800">{c.rating}</Badge>
                       </TableCell>
                       <TableCell>{formatDate(c.created_at)}</TableCell>
                       <TableCell className="text-right">
@@ -282,9 +387,7 @@ async function deleteComment(id: number) {
                             <DropdownMenuItem onClick={() => openEdit(c)}>
                               <Edit className="mr-2 h-4 w-4" /> Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => deleteComment(c.id)}>
-                              Delete
-                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => deleteComment(c.id)}>Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -303,7 +406,8 @@ async function deleteComment(id: number) {
           <DialogHeader>
             <DialogTitle>Edit Comment</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4">
+
+          <div className="grid gap-3">
             <Input
               placeholder="Name"
               value={editForm.name}
@@ -329,10 +433,11 @@ async function deleteComment(id: number) {
               min={1}
               max={5}
               placeholder="Rating"
-              value={editForm.rating}
-              onChange={(e) => setEditForm((s) => ({ ...s, rating: Number(e.target.value) }))}
+              value={String(editForm.rating)}
+              onChange={(e) => setEditForm((s) => ({ ...s, rating: Number(e.target.value) || 1 }))}
             />
           </div>
+
           <DialogFooter className="mt-4 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
               Cancel
