@@ -159,9 +159,22 @@ export default function ArtistProfilesPage() {
     // using location.href so mobile devices will invoke dialer
     window.location.href = tel;
   }
-  const parseLocation = (loc?: string | null) => {
-    if (!loc) return { city: "-", state: "-", extra: "" };
-    // Expected format: "city, state - postal"
+const parseLocation = (loc?: string | null | any) => {
+  if (!loc) {
+    return { city: "-", state: "-", extra: "" };
+  }
+
+  // If it's already an object (from API: {id, city, state, pincode, lat, lng})
+  if (typeof loc === "object") {
+    return {
+      city: loc.city || "-",
+      state: loc.state || "-",
+      extra: loc.pincode || "",
+    };
+  }
+
+  // If it's a string
+  if (typeof loc === "string") {
     const [cityPart, rest] = loc.split(",").map((s) => s && s.trim());
     const state = rest ? rest.split("-")[0].trim() : "-";
     const extra =
@@ -169,7 +182,12 @@ export default function ArtistProfilesPage() {
         ? rest.split("-").slice(1).join("-").trim()
         : "";
     return { city: cityPart || "-", state: state || "-", extra };
-  };
+  }
+
+  return { city: "-", state: "-", extra: "" };
+};
+
+
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -410,9 +428,10 @@ export default function ArtistProfilesPage() {
                             <p className="text-gray-600">
                               {artist.email ?? artist.phone}
                             </p>
-                            <p className="text-sm text-gray-500">
-                              {artist.location}
-                            </p>
+                           <p className="text-sm text-gray-500">
+  {`${loc.city}, ${loc.state}${loc.extra ? " - " + loc.extra : ""}`}
+</p>
+
                           </div>
 
                           <div className="flex gap-2">
@@ -490,12 +509,7 @@ export default function ArtistProfilesPage() {
                             </div>
                             <div className="font-medium">{loc.state}</div>
 
-                            <div className="text-xs text-gray-500 mt-3">
-                              Postal / Extra
-                            </div>
-                            <div className="font-medium">
-                              {loc.extra || "-"}
-                            </div>
+                           
                           </div>
 
                           <div className="space-y-1">
