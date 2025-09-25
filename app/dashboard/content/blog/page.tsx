@@ -365,7 +365,7 @@ export default function BlogManagementPage() {
           <CardTitle>Blog Overview</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-blue-50 p-4 rounded-lg">
               <p className="text-sm text-blue-600 font-medium">Total Posts</p>
               <p className="text-2xl font-bold">{posts.length}</p>
@@ -381,11 +381,7 @@ export default function BlogManagementPage() {
               <p className="text-2xl font-bold">{Array.from(new Set(posts.map((p) => p.category))).length}</p>
               <p className="text-xs text-gray-500">Unique categories</p>
             </div>
-            <div className="bg-purple-50 p-4 rounded-lg">
-              <p className="text-sm text-purple-600 font-medium">Latest</p>
-              <p className="text-2xl font-bold">{posts[0]?.title ?? "-"}</p>
-              <p className="text-xs text-gray-500">Most recent post</p>
-            </div>
+       
           </div>
         </CardContent>
       </Card>
