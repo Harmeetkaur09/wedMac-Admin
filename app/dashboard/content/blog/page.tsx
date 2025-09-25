@@ -502,8 +502,8 @@ export default function BlogManagementPage() {
                             <div className="flex-1 space-y-3">
                               <div className="flex justify-between items-start">
                                 <div>
-                                  <h3 className="text-xl font-bold hover:text-[#FF6B9D] cursor-pointer">{post.title}</h3>
-                                  <p className="text-gray-600 mt-1 line-clamp-2">{post.content}</p>
+                                  <h3 className="text-xl font-bold break-all hover:text-[#FF6B9D] cursor-pointer">{post.title}</h3>
+                                  <p className="text-gray-600 mt-1 break-all line-clamp-2">{post.content}</p>
                                 </div>
                               </div>
 
