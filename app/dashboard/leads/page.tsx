@@ -561,8 +561,8 @@ export default function LeadManagement() {
             </div>
 
             <div className="bg-green-50 p-4 rounded-lg">
-              <p className="text-sm text-green-600 font-medium">Other</p>
-              <p className="text-2xl font-bold">{counts.new}</p>
+              <p className="text-sm text-green-600 font-medium">Booked</p>
+              <p className="text-2xl font-bold">{counts.booked}</p>
             </div>
           </div>
         </CardContent>
