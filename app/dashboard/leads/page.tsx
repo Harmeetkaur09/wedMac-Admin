@@ -44,6 +44,7 @@ type Artist = {
 type Lead = {
   event_type?: string;
   booking_date: string;
+  makeup_types?: { id: number | string; name: string }[];
   id: number | string;
   name: string;
   email?: string | null;
@@ -66,7 +67,7 @@ type Lead = {
   } | null;
 };
 
-const API_URL = "https://api.wedmacindia.com/api/leads/all-leads/";
+const API_URL = "https://api.wedmacindia.com/api/leads/list/";
 // base used for update endpoints (matches your examples)
 const UPDATE_URL_BASE = "https://api.wedmacindia.com/api/leads";
 
@@ -143,6 +144,7 @@ const mapToLead = (raw: RawLead): Lead => {
   const budgetMax = parseNumber(
     raw.budget_range?.max_value ?? raw.max_budget ?? raw.budgetMax
   );
+
   return {
     id,
     name,
@@ -160,8 +162,10 @@ const mapToLead = (raw: RawLead): Lead => {
     assigned_to: raw.assigned_to ?? null,
     raw,
     booking_date: raw.booking_date ? String(raw.booking_date).slice(0, 10) : "",
+    makeup_types: raw.makeup_types ?? [],   // ✅ ये add करना है
   };
 };
+
 
 export default function LeadManagement() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -169,6 +173,7 @@ export default function LeadManagement() {
   const [error, setError] = useState<string | null>(null);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [loadingArtists, setLoadingArtists] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string[]> | null>(null);
   const [activeTab, setActiveTab] = useState<
     | "all"
     | "new"
@@ -184,6 +189,37 @@ export default function LeadManagement() {
   const [selectedArtist, setSelectedArtist] = useState<string>("");
   const [showContactedBooks, setShowContactedBooks] = useState(false);
   const hasFetched = useRef(false);
+  const [availableMakeupTypes, setAvailableMakeupTypes] = useState<
+  { id: number | string; name: string }[]
+>([]);
+const fetchMakeupTypes = async () => {
+  try {
+    const resp = await fetch(
+      "https://api.wedmacindia.com/api/admin/master/list/?type=makeup_types",
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader(),
+        },
+      }
+    );
+    if (!resp.ok) throw new Error("Failed to fetch makeup types");
+    const data = await resp.json();
+    // API का format check करो → मान लो `results` array देता है
+    const items = Array.isArray(data)
+      ? data
+      : data.results ?? data.data ?? [];
+    setAvailableMakeupTypes(items);
+  } catch (err) {
+    console.error("Error fetching makeup types:", err);
+    setAvailableMakeupTypes([]);
+  }
+};
+useEffect(() => {
+  fetchArtists();
+  fetchMakeupTypes(); // 👈 यहाँ call
+}, []);
+
 
   // NEW: edit modal state
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -194,6 +230,8 @@ export default function LeadManagement() {
     location?: string;
     phone?: string;
     budget?: string;
+      makeup_types?: (number | string)[];
+
   }>({});
 
   const fetchArtists = async () => {
@@ -330,6 +368,8 @@ export default function LeadManagement() {
       location: lead.location ?? "",
       phone: lead.phone ?? "",
       budget: lead.budget != null ? String(lead.budget) : lead.budgetMax != null ? String(lead.budgetMax) : "",
+      makeup_types: lead.makeup_types?.map((m) => m.id) ?? [], // ✅ add this
+
     });
   };
 
@@ -344,28 +384,44 @@ export default function LeadManagement() {
     if (editForm.booking_date !== undefined) payload.booking_date = editForm.booking_date || null;
     if (editForm.location !== undefined) payload.location = editForm.location;
     if (editForm.phone !== undefined) payload.phone = editForm.phone;
+    if (editForm.makeup_types !== undefined) {
+  payload.makeup_types = editForm.makeup_types;
+}
+
     // convert budget to number or null
     payload.budget = editForm.budget !== undefined && editForm.budget !== "" ? parseNumber(editForm.budget) : null;
 
+try {
+    const updated = await patchLead(leadId, payload);
+
+    setLeads((prev) =>
+      prev.map((p) =>
+        String(p.id) !== String(leadId)
+          ? p
+          : mapToLead({ ...(p.raw ?? {}), ...(updated ?? payload) })
+      )
+    );
+
+    toast.success("Lead updated");
+    setEditingLead(null);
+    setEditForm({});
+    setFormErrors(null); // ✅ reset errors
+  } catch (err: any) {
+    console.error("Failed to update lead:", err);
+
     try {
-      const updated = await patchLead(leadId, payload);
-
-      setLeads((prev) =>
-        prev.map((p) => {
-          if (String(p.id) !== String(leadId)) return p;
-          const newRaw = { ...(p.raw ?? {}), ...(updated ?? payload) };
-          return mapToLead(newRaw);
-        })
+      // server से response JSON parse कर लो
+      const parsed = JSON.parse(
+        err.message.replace(/^Update failed:\s*\d+\s*/, "")
       );
-
-      toast.success("Lead updated");
-      setEditingLead(null);
-      setEditForm({});
-    } catch (err: any) {
-      console.error("Failed to update lead:", err);
-      toast.error("Failed to update lead: " + (err?.message ?? ""));
+      setFormErrors(parsed); // ✅ store errors
+    } catch {
+      setFormErrors({ general: [err?.message ?? "Unknown error"] });
     }
-  };
+
+    toast.error("Failed to update lead");
+  }
+};
 
   // Edit basic info (deprecated prompt-based) - replaced by modal open
   const handleEditLead = (lead: Lead) => {
@@ -693,7 +749,6 @@ export default function LeadManagement() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Name</TableHead>
                           <TableHead>Contact</TableHead>
                           <TableHead>Service</TableHead>
                           <TableHead>Status</TableHead>
@@ -709,19 +764,22 @@ export default function LeadManagement() {
                         {filteredLeads.map((lead) => (
                           <TableRow key={String(lead.id)} data-lead-id={String(lead.id)}>
                             <TableCell className="font-medium">
-                              {lead.name}
+                                 <div className="font-medium">{lead.name}</div>
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+{lead.email ?? "-"}
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+{lead.phone ?? "-"}
+                                </div>
                             </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="text-xs">{lead.email ?? "-"}</p>
-                                <p className="text-xs text-gray-500">
-                                  {lead.phone ?? "-"}
-                                </p>
-                              </div>
-                            </TableCell>
+                       
                             <TableCell>
                               <div className="space-y-1">
-                                <div className="font-medium">{lead.event_type ?? "-"}</div>
+<div className="font-medium">
+  {lead.makeup_types?.length
+    ? lead.makeup_types.map((m) => m.name).join(", ")
+    : "-"}
+</div>
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                   <Calendar className="w-3 h-3" />
                                   {lead.booking_date ?? "-"}
@@ -868,9 +926,12 @@ export default function LeadManagement() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white p-4 rounded-lg w-full max-w-lg mx-auto sm:p-6">
             <h2 className="text-lg font-bold mb-3">Edit Lead</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Edit name, service, event date, location, phone and budget.
-            </p>
+          {formErrors?.general && (
+  <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-2 rounded mb-3">
+    {formErrors.general.join(", ")}
+  </div>
+)}
+
 
             <div className="grid grid-cols-1 gap-3">
               <label className="text-xs text-gray-600">Name</label>
@@ -878,44 +939,86 @@ export default function LeadManagement() {
                 value={editForm.name ?? ""}
                 onChange={(e) => setEditForm((s) => ({ ...s, name: e.target.value }))}
                 placeholder="Lead name"
+                required
               />
+              {formErrors?.name && <p className="text-red-600 text-xs mt-1">{formErrors.name.join(", ")}</p>}
 
-              <label className="text-xs text-gray-600">Event</label>
-              <Input
-                value={editForm.event_type ?? ""}
-                onChange={(e) => setEditForm((s) => ({ ...s, event_type: e.target.value }))}
-                placeholder="Event name"
-              />
+
+        <label className="text-xs text-gray-600">Makeup Types</label>
+<div className="flex flex-wrap gap-2">
+  {availableMakeupTypes.map((mt) => (
+    <label
+      key={mt.id}
+      className="flex items-center gap-1 border px-2 py-1 rounded"
+    >
+      <input
+        type="checkbox"
+        checked={editForm.makeup_types?.includes(mt.id) ?? false}
+        required
+        onChange={(e) => {
+          setEditForm((s) => {
+            const current = new Set(s.makeup_types ?? []);
+            if (e.target.checked) {
+              current.add(mt.id);
+            } else {
+              current.delete(mt.id);
+            }
+            return { ...s, makeup_types: Array.from(current) };
+          });
+        }}
+      />
+      {mt.name}
+    </label>
+  ))}
+  {formErrors?.makeup_types && <p className="text-red-600 text-xs mt-1">{formErrors.makeup_types.join(", ")}</p>}
+
+</div>
+
+
 
               <label className="text-xs text-gray-600">Event / Booking Date</label>
               <Input
                 type="date"
                 value={editForm.booking_date ?? ""}
+                required
                 onChange={(e) => setEditForm((s) => ({ ...s, booking_date: e.target.value }))}
               />
+              {formErrors?.booking_date && <p className="text-red-600 text-xs mt-1">{formErrors.booking_date.join(", ")}</p>}
 
-              <label className="text-xs text-gray-600">Location</label>
-              <Input
-                value={editForm.location ?? ""}
-                onChange={(e) => setEditForm((s) => ({ ...s, location: e.target.value }))}
-                placeholder="Event location"
-              />
+
+             <label className="text-xs text-gray-600">Location</label>
+<Input
+  value={editForm.location ?? ""}
+  required
+  onChange={(e) => setEditForm((s) => ({ ...s, location: e.target.value }))}
+  placeholder="Event location"
+/>
+{formErrors?.location && (
+  <p className="text-red-600 text-xs mt-1">{formErrors.location.join(", ")}</p>
+)}
+
 
               <label className="text-xs text-gray-600">Phone</label>
               <Input
                 value={editForm.phone ?? ""}
+                required
                 onChange={(e) => setEditForm((s) => ({ ...s, phone: e.target.value }))}
                 placeholder="Phone number"
                 inputMode="tel"
               />
+              {formErrors?.phone && <p className="text-red-600 text-xs mt-1">{formErrors.phone.join(", ")}</p>}
+
 
               <label className="text-xs text-gray-600">Budget</label>
               <Input
                 value={editForm.budget ?? ""}
+                required
                 onChange={(e) => setEditForm((s) => ({ ...s, budget: e.target.value }))}
                 placeholder="Budget (numeric)"
                 inputMode="numeric"
               />
+              {formErrors?.budget && <p className="text-red-600 text-xs mt-1">{formErrors.budget.join(", ")}</p>}
+
             </div>
 
             <div className="flex justify-end gap-2 mt-4">

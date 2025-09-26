@@ -49,13 +49,13 @@ const sidebarItems = [
     ],
   },
   {
-    title: "User Management",
-    href: "/dashboard/users",
+    title: "Query Management",
+    href: "/dashboard/queries",
     icon: <UserCircle className="h-5 w-5" />,
     subItems: [
-      { title: "User List", href: "/dashboard/users" },
-      // { title: "Profiles", href: "/dashboard/users/profiles" },
-      // { title: "Status Management", href: "/dashboard/users/status" },
+      { title: "Query List", href: "/dashboard/queries" },
+      // { title: "Profiles", href: "/dashboard/queries/profiles" },
+      // { title: "Status Management", href: "/dashboard/queries/status" },
     ],
   },
   {

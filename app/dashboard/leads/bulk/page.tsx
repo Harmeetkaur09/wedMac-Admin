@@ -271,40 +271,50 @@ export default function LeadBulkUploaderpage() {
         </div>
       )}
 
-      {results && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <strong>Results:</strong> {results.length} rows processed
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={downloadErrorsCsv}>Download results CSV</Button>
-            </div>
-          </div>
+    {results && (
+  <div className="space-y-2">
+    <div className="flex items-center justify-between">
+      <div>
+        <strong>Results:</strong> {results.length} rows processed
+      </div>
+      <div className="flex gap-2">
+        <Button onClick={downloadErrorsCsv}>Download results CSV</Button>
+      </div>
+    </div>
 
-          <div className="overflow-auto max-h-96 border rounded p-2">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr>
-                  <th className="text-left">#</th>
-                  <th className="text-left">Status</th>
-                  <th className="text-left">Lead / Assigned</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((r, i) => (
-                  <tr key={i} className={`border-t ${r.success ? "bg-green-50" : "bg-red-50"}`}>
-                    <td className="pr-4">{i + 1}</td>
-                    <td className="pr-4">{r.success ? "OK" : "Error"}</td>
-                    <td className="pr-4">{r.success ? (r.assigned_to || JSON.stringify(r.lead || {})) : "-"}</td>
-                    <td className="pr-4"><pre className="whitespace-pre-wrap text-xs">{r.success ? "" : JSON.stringify(r.errors || r)}</pre></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+    <div className="overflow-auto max-h-96 border rounded p-2">
+      <table className="min-w-full text-sm">
+        <thead>
+          <tr>
+            <th className="text-left">#</th>
+            <th className="text-left">Status</th>
+            <th className="text-left">Message</th>
+            <th className="text-left">Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          {results.map((r, i) => (
+            <tr key={i} className={`border-t ${r.success ? "bg-green-50" : "bg-red-50"}`}>
+              <td className="pr-4">{i + 1}</td>
+              <td className="pr-4">{r.success ? "OK" : "Error"}</td>
+              <td className="pr-4">
+                {r.success ? "Lead submitted successfully" : "-"}
+              </td>
+              <td className="pr-4">
+                {!r.success && (
+                  <pre className="whitespace-pre-wrap text-xs">
+                    {JSON.stringify(r.errors || r, null, 2)}
+                  </pre>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }
