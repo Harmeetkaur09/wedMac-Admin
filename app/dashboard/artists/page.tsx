@@ -240,46 +240,64 @@ const [createError, setCreateError] = useState<string | null>(null);
       } catch (e) {
         console.warn("Navigation to receive-token failed:", e);
       }
-      const onMessage = (e: MessageEvent) => {
-        try {
-          if (e.origin !== artistOrigin) return;
-          if (!e.data || e.data.type !== "receive-ready") return;
-          const payload = { access, refresh, user_id: userId };
-          try {
-            if (newWin && !newWin.closed) newWin.postMessage(payload, artistOrigin);
-            console.log("Sent tokens via postMessage to artist window");
-          } catch (err) {
-            console.warn("postMessage to child failed:", err);
-            const fallbackUrl = `${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
-            if (newWin && !newWin.closed) newWin.location.href = fallbackUrl;
-            else window.open(fallbackUrl, "_blank", "noopener,noreferrer");
-          } finally {
-            window.removeEventListener("message", onMessage);
-          }
-        } catch (err) {
-          console.error("Error in onMessage handler:", err);
-        }
-      };
-      window.addEventListener("message", onMessage, false);
-      const fallbackTimer = setTimeout(() => {
-        try {
-          const payload = { access, refresh, user_id: userId };
-          try {
-            if (newWin && !newWin.closed) newWin.postMessage(payload, artistOrigin);
-            else {
-              const fallbackUrl = `${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
-              window.open(fallbackUrl, "_blank", "noopener,noreferrer");
-            }
-          } catch (err) {
-            console.warn("Fallback postMessage failed:", err);
-            const fallbackUrl = `${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
-            if (newWin && !newWin.closed) newWin.location.href = fallbackUrl;
-            else window.open(fallbackUrl, "_blank", "noopener,noreferrer");
-          }
-        } finally {
-          window.removeEventListener("message", onMessage);
-        }
-      }, 1500);
+    // inside loginAsArtist after opening newWin and navigating to receiveUrl
+const onMessage = (e: MessageEvent) => {
+  try {
+    // only accept receive-ready from the target origin
+    if (e.origin !== artistOrigin) return;
+    if (!e.data || e.data.type !== "receive-ready") return;
+
+    console.log("Admin: got receive-ready from artist window, sending tokens");
+
+    const payload = { access, refresh, user_id: userId };
+
+    // prefer replying to the event source (more robust)
+    try {
+      if (e.source && typeof (e.source as any).postMessage === "function") {
+        (e.source as Window).postMessage(payload, e.origin);
+      } else if (newWin && !newWin.closed) {
+        newWin.postMessage(payload, artistOrigin);
+      } else {
+        // last resort: navigate with hash fallback
+        const fallbackUrl = `${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
+        if (newWin && !newWin.closed) newWin.location.href = fallbackUrl;
+        else window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      }
+      console.log("Admin: tokens posted to artist window");
+    } catch (err) {
+      console.warn("Admin: postMessage to child failed, using fallback navigation", err);
+      const fallbackUrl = `${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
+      if (newWin && !newWin.closed) newWin.location.href = fallbackUrl;
+      else window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+    } finally {
+      // cleanup listener after attempt
+      window.removeEventListener("message", onMessage);
+    }
+  } catch (err) {
+    console.error("Error in onMessage handler:", err);
+  }
+};
+
+window.addEventListener("message", onMessage, false);
+
+// increase fallback delay slightly
+const fallbackTimer = setTimeout(() => {
+  try {
+    const payload = { access, refresh, user_id: userId };
+    if (newWin && !newWin.closed) {
+      try { newWin.postMessage(payload, artistOrigin); console.log("Fallback: posted tokens"); }
+      catch (err) {
+        const fallbackUrl = `${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
+        newWin.location.href = fallbackUrl;
+      }
+    } else {
+      window.open(`${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`, "_blank", "noopener,noreferrer");
+    }
+  } finally {
+    window.removeEventListener("message", onMessage);
+  }
+}, 2500); // 2.5s
+
     } catch (err) {
       console.error("Login-as-artist failed:", err);
       toast.error("Failed to login as artist");
