@@ -765,7 +765,7 @@ try {
                         <TableRow>
                           <TableHead>Contact</TableHead>
                           <TableHead>Service</TableHead>
-                          <TableHead>Status</TableHead>
+                          <TableHead>Requested Artist</TableHead>
                           <TableHead>Capping</TableHead>
                           <TableHead>Claimed</TableHead>
                           <TableHead>Budget</TableHead>
