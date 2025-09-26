@@ -55,6 +55,11 @@ type Lead = {
   source?: string;
   date?: string;
   maxClaims?: number | null;
+  requested_artist?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+  } | null;
   claimedCount?: number | null;
   budget?: number | null;
   budgetMax?: number | null;
@@ -160,6 +165,8 @@ const mapToLead = (raw: RawLead): Lead => {
     budget,
     budgetMax,
     assigned_to: raw.assigned_to ?? null,
+        requested_artist: raw.requested_artist ?? null,   // ✅ yeh line add karo
+
     raw,
     booking_date: raw.booking_date ? String(raw.booking_date).slice(0, 10) : "",
     makeup_types: raw.makeup_types ?? [],   // ✅ ये add करना है
@@ -694,6 +701,13 @@ try {
                             </div>
                             <p className="text-xs text-gray-500">{lead.email ?? "-"}</p>
                             <p className="text-xs text-gray-500">{lead.phone ?? "-"}</p>
+                            <p className="text-xs text-gray-500">{lead.makeup_types?.length
+    ? lead.makeup_types.map((m) => m.name).join(", ")
+    : "-"}</p>
+    <p className="text-xs text-gray-500">{lead.budget ?? lead.budgetMax ?? "-"}</p>
+    <p className="text-xs text-gray-500">Max Claim: {lead.maxClaims ?? "-"}</p>
+    <p className="text-xs text-gray-500">Claimed: {lead.claimedCount ?? "-"}</p>
+    <p className="text-xs text-gray-500 break-all">Requested Artist: {lead.requested_artist ? `${lead.requested_artist.first_name} ${lead.requested_artist.last_name}` : "-"}</p>
                           </div>
                           <div className="flex flex-col items-end gap-2">
                             <div className="text-sm text-gray-500">{lead.booking_date ?? lead.date ?? "-"}</div>
@@ -791,19 +805,27 @@ try {
                               </div>
                             </TableCell>
 
-                            <TableCell>
-                              <Badge className={badgeClassForStatus(lead.status)}>
-                                {lead.status}
-                              </Badge>
-                            </TableCell>
+                          <TableCell>
+ {lead?.requested_artist
+      ? `${lead.requested_artist.first_name} ${lead.requested_artist.last_name}`
+      : "-"}
+</TableCell>
+
 
                             <TableCell>{lead.maxClaims ?? "-"}</TableCell>
                             <TableCell>{lead.claimedCount ?? "-"}</TableCell>
                             <TableCell>{lead.budget ?? lead.budgetMax ?? "-"}</TableCell>
                             <TableCell>{lead.assigned_to?.first_name ?? "-"}</TableCell>
 
-                            <TableCell>{lead.date ?? "-"}</TableCell>
-                            <TableCell className="text-right">
+   <TableCell className="font-medium">
+                                 <div className="font-medium">{lead.date ?? "-"}</div>
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+<Badge className={badgeClassForStatus(lead.status)}>
+                                {lead.status}
+                              </Badge>
+                                </div>
+                             
+                            </TableCell>                            <TableCell className="text-right">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon">
