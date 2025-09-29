@@ -328,7 +328,7 @@ export default function LeadDistributionWithToggle() {
               const assignRes = await fetch(
                 `https://api.wedmacindia.com/api/leads/${createdLeadId}/update/`,
                 {
-                  method: "PATCH",
+                  method: "PUT",
                   headers: {
                     Authorization: `Bearer ${sessionStorage.getItem("accessToken")}`,
                     "Content-Type": "application/json",
