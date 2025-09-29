@@ -391,7 +391,6 @@ export default function BlogManagementPage() {
         <CardContent>
           <form onSubmit={createOrUpdate} className="space-y-4 pt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Input placeholder="Project ID (required for create)" value={projectId} maxLength={3} onChange={(e) => setProjectId(e.target.value)} />
               <Input placeholder="Title *" value={title} maxLength={70} onChange={(e) => setTitle(e.target.value)} />
             </div>
             <div>
