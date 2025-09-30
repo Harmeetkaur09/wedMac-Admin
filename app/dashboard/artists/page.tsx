@@ -192,116 +192,94 @@ const [createError, setCreateError] = useState<string | null>(null);
     }
   };
 
-  const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
-    if (!artistPhone) {
-      toast.error("Artist phone not available");
-      return;
-    }
-    const newWin = typeof window !== "undefined" ? window.open("", "_blank") : null;
-    if (typeof window !== "undefined" && !newWin) {
-      toast.error("Popup blocked. Please allow popups for this site.");
-      return;
-    }
-    setActionLoading((p) => ({ ...p, [artistId ?? -1]: true }));
+const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
+  if (!artistPhone) { toast.error("Artist phone not available"); return; }
+
+  // 1) prepare listener first (so we don't miss child's "receive-ready")
+  const artistOrigin = "https://wedmac-artist.vercel.app"; // MUST match actual deployed artist origin
+  const receivePath = "/receive-token";
+  const receiveUrl = `${artistOrigin}${receivePath}`;
+
+  let newWin: Window | null = null;
+  let fallbackTimer: number | null = null;
+
+  const onMessage = (e: MessageEvent) => {
     try {
-      const endpoint = `${API_HOST}/api/users/admin/login-as-artist/`;
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(typeof window !== "undefined" && sessionStorage.getItem("accessToken")
-            ? { Authorization: `Bearer ${sessionStorage.getItem("accessToken")}` }
-            : {}),
-        },
-        body: JSON.stringify({ phone: String(artistPhone) }),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`;
-        toast.error(msg);
-        if (newWin && !newWin.closed) newWin.close();
-        return;
-      }
-      const access = json?.access;
-      const refresh = json?.refresh;
-      const userId = json?.user_id ?? null;
-      if (!access) {
-        toast.error("Login-as-artist did not return access token");
-        if (newWin && !newWin.closed) newWin.close();
-        return;
-      }
-      toast.success(json?.message || "Logged in as artist");
-      const artistOrigin = "https://wedmac-artist.vercel.app";
-      const receivePath = "/receive-token";
-      const receiveUrl = `${artistOrigin}${receivePath}`;
+      if (e.origin !== artistOrigin) return; // strict origin check
+      // accept a handshake from child
+      if (!e.data || e.data.type !== "receive-ready") return;
+
+      // send tokens back to the child window (use e.source if available)
+      const payload = { access, refresh, user_id: userId };
       try {
-        if (newWin && !newWin.closed) newWin.location.href = receiveUrl;
-        else window.open(receiveUrl, "_blank", "noopener,noreferrer");
-      } catch (e) {
-        console.warn("Navigation to receive-token failed:", e);
+        if (e.source && typeof (e.source as any).postMessage === "function") {
+          (e.source as Window).postMessage(payload, e.origin);
+        } else if (newWin && !newWin.closed) {
+          newWin.postMessage(payload, artistOrigin);
+        }
+      } catch (err) {
+        console.warn("postMessage to artist failed:", err);
+      } finally {
+        if (fallbackTimer) window.clearTimeout(fallbackTimer);
+        window.removeEventListener("message", onMessage);
       }
-const onMessage = (e: MessageEvent) => {
-  try {
-    if (e.origin !== artistOrigin) return;
-    if (!e.data || e.data.type !== "receive-ready") return;
-
-    console.log("Admin: got receive-ready from artist window", { origin: e.origin, source: e.source });
-
-    const payload = { access, refresh, user_id: userId };
-    console.log("Admin: sending payload to artist window:", payload);
-
-    try {
-      if (e.source && typeof (e.source as any).postMessage === "function") {
-        (e.source as Window).postMessage(payload, e.origin);
-      } else if (newWin && !newWin.closed) {
-        newWin.postMessage(payload, artistOrigin);
-      } else {
-        // fallback navigation
-        const fallbackUrl = `${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
-        if (newWin && !newWin.closed) newWin.location.href = fallbackUrl;
-        else window.open(fallbackUrl, "_blank", "noopener,noreferrer");
-      }
-      console.log("Admin: tokens posted to artist window");
     } catch (err) {
-      console.warn("Admin: postMessage to child failed, using fallback navigation", err);
-    } finally {
-      window.removeEventListener("message", onMessage);
+      console.error("onMessage error:", err);
     }
+  };
+
+  window.addEventListener("message", onMessage, false);
+
+  // 2) open the new window *immediately* (blank) so popup isn't blocked and opener exists
+  newWin = typeof window !== "undefined" ? window.open("", "_blank") : null;
+  if (typeof window !== "undefined" && !newWin) {
+    toast.error("Popup blocked. Please allow popups for this site.");
+    window.removeEventListener("message", onMessage);
+    return;
+  }
+
+  setActionLoading((p) => ({ ...p, [artistId ?? -1]: true }));
+  try {
+    // fetch tokens from API (unchanged; keep same endpoint)
+    const endpoint = `${API_HOST}/api/users/admin/login-as-artist/`;
+    const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(sessionStorage.getItem("accessToken") ? { Authorization: `Bearer ${sessionStorage.getItem("accessToken")}` } : {}) }, body: JSON.stringify({ phone: String(artistPhone) }) });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) { const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`; toast.error(msg); if (newWin && !newWin.closed) newWin.close(); window.removeEventListener("message", onMessage); return; }
+
+    const access = json?.access, refresh = json?.refresh, userId = json?.user_id ?? null;
+    if (!access) { toast.error("Login-as-artist did not return access token"); if (newWin && !newWin.closed) newWin.close(); window.removeEventListener("message", onMessage); return; }
+
+    // 3) navigate child to receive page AFTER opening it
+    try { if (newWin && !newWin.closed) newWin.location.href = receiveUrl; }
+    catch (e) { console.warn("Navigation to receive-token failed:", e); }
+
+    // 4) set a fallback: after timeout, try direct postMessage (or fragment fallback)
+    fallbackTimer = window.setTimeout(() => {
+      try {
+        const payload = { access, refresh, user_id: userId };
+        if (newWin && !newWin.closed) {
+          try { newWin.postMessage(payload, artistOrigin); console.log("Fallback: posted tokens to artist window"); }
+          catch (err) {
+            // fragment fallback
+            newWin.location.href = `${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
+          }
+        } else {
+          window.open(`${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`, "_blank");
+        }
+      } finally {
+        window.removeEventListener("message", onMessage);
+      }
+    }, 7000); // give longer time (7s)
   } catch (err) {
-    console.error("Error in onMessage handler:", err);
+    console.error("Login-as-artist failed:", err);
+    toast.error("Failed to login as artist");
+    if (newWin && !newWin.closed) newWin.close();
+    window.removeEventListener("message", onMessage);
+  } finally {
+    setActionLoading((p) => ({ ...p, [artistId ?? -1]: false }));
   }
 };
 
-// add listener
-window.addEventListener("message", onMessage, false);
-
-// increase fallback timeout (slightly)
-const fallbackTimer = setTimeout(() => {
-  try {
-    const payload = { access, refresh, user_id: userId };
-    if (newWin && !newWin.closed) {
-      try { newWin.postMessage(payload, artistOrigin); console.log("Fallback: posted tokens"); }
-      catch (err) {
-        const fallbackUrl = `${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
-        newWin.location.href = fallbackUrl;
-      }
-    } else {
-      window.open(`${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`, "_blank", "noopener,noreferrer");
-    }
-  } finally {
-    window.removeEventListener("message", onMessage);
-  }
-}, 3000); // 3s
-
-
-    } catch (err) {
-      console.error("Login-as-artist failed:", err);
-      toast.error("Failed to login as artist");
-      if (newWin && !newWin.closed) newWin.close();
-    } finally {
-      setActionLoading((p) => ({ ...p, [artistId ?? -1]: false }));
-    }
-  };
 
 const postArtistTag = async (artistId: number, tag: string) => {
   setActionLoading((p) => ({ ...p, [artistId]: true }));

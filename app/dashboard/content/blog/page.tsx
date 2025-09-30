@@ -311,6 +311,7 @@ export default function BlogManagementPage() {
         await fetchPosts();
         resetForm();
         alert("Blog post updated.");
+        window.location.reload();
       }
     } catch (err: any) {
       console.error(err);
@@ -365,22 +366,13 @@ export default function BlogManagementPage() {
           <CardTitle>Blog Overview</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
             <div className="bg-blue-50 p-4 rounded-lg">
               <p className="text-sm text-blue-600 font-medium">Total Posts</p>
               <p className="text-2xl font-bold">{posts.length}</p>
               <p className="text-xs text-gray-500">All blog posts</p>
             </div>
-            <div className="bg-green-50 p-4 rounded-lg">
-              <p className="text-sm text-green-600 font-medium">Published</p>
-              <p className="text-2xl font-bold">{posts.filter((p) => p["status"] === "published").length}</p>
-              <p className="text-xs text-gray-500">Published posts</p>
-            </div>
-            <div className="bg-yellow-50 p-4 rounded-lg">
-              <p className="text-sm text-yellow-600 font-medium">Categories</p>
-              <p className="text-2xl font-bold">{Array.from(new Set(posts.map((p) => p.category))).length}</p>
-              <p className="text-xs text-gray-500">Unique categories</p>
-            </div>
+         
        
           </div>
         </CardContent>
