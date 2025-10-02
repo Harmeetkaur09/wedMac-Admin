@@ -269,7 +269,7 @@ const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
       } finally {
         window.removeEventListener("message", onMessage);
       }
-    }, 7000); // give longer time (7s)
+    }, 10000); // give longer time (10s)
   } catch (err) {
     console.error("Login-as-artist failed:", err);
     toast.error("Failed to login as artist");
