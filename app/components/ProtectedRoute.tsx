@@ -1,22 +1,22 @@
-"use client"
+"use client";
 
-import { useAuth } from "../contexts/AuthContext"
-import { useRouter } from "next/navigation"
-import { useEffect, type ReactNode } from "react"
+import { useAuth } from "../contexts/AuthContext";
+import { useRouter } from "next/navigation";
+import { useEffect, type ReactNode } from "react";
 
 interface ProtectedRouteProps {
-  children: ReactNode
+  children: ReactNode;
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, isLoading } = useAuth()
-  const router = useRouter()
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
     if (!isLoading && !user) {
-      router.push("/login")
+      router.push("/login");
     }
-  }, [user, isLoading, router])
+  }, [user, isLoading, router]);
 
   if (isLoading) {
     return (
@@ -26,12 +26,10 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
           <p className="text-gray-600 animate-pulse">Loading...</p>
         </div>
       </div>
-    )
+    );
   }
 
-  if (!user) {
-    return null
-  }
+  if (!user) return null; // not logged in, redirecting
 
-  return <>{children}</>
+  return <>{children}</>;
 }

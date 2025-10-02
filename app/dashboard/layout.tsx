@@ -1,3 +1,4 @@
+// app/dashboard/layout.tsx
 import type { ReactNode } from "react"
 import AdminSidebar from "./components/AdminSidebar"
 import AdminHeader from "./components/AdminHeader"

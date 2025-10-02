@@ -24,13 +24,20 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState(""); // success/info messages
   const [resendCooldown, setResendCooldown] = useState(0);
+const { user } = useAuth();
 
-const { login, loginWithToken } = useAuth();  const router = useRouter();
+  const { login, loginWithToken } = useAuth();
+  const router = useRouter();
 
-  useEffect(() => {
-    // redirect if user is already logged in — if your useAuth provides user, prefer that
-    // (If useAuth exposes `user`, you can check and push; left out to keep generic)
-  }, [router]);
+useEffect(() => {
+ if (!isLoading && user) { // ya useAuth me user object check karein
+    const storedUser = sessionStorage.getItem("accessToken") ;
+    if (storedUser) {
+      router.push("/dashboard"); // Already logged in → dashboard
+    }
+  }
+}, [isLoading, router]);
+
 
   useEffect(() => {
     let t: number | undefined;
