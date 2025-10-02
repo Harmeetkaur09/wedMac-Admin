@@ -521,7 +521,7 @@ export default function BlogManagementPage() {
                                 <Button variant="outline" size="sm" onClick={() => populateForEdit(post)}>
                                   <Edit className="h-3.5 w-3.5 mr-1" /> Edit
                                 </Button>
-                                <Button variant="outline" size="sm" onClick={() => window.open(`https://wed-mac-qsxz.vercel.app/blog/${post.project_id || post.id}`, "_blank")}>
+                                <Button variant="outline" size="sm" onClick={() => window.open(`https://wedmacindia.com/blog/${post.project_id || post.id}`, "_blank")}>
                                   <Eye className="h-3.5 w-3.5 mr-1" /> View
                                 </Button>
                                 <Button variant="outline" size="sm" className="text-red-600 hover:bg-red-50" onClick={() => removePost(post.project_id)}>

@@ -196,7 +196,7 @@ const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
   if (!artistPhone) { toast.error("Artist phone not available"); return; }
 
   // 1) prepare listener first (so we don't miss child's "receive-ready")
-  const artistOrigin = "https://wedmac-artist.vercel.app"; // MUST match actual deployed artist origin
+  const artistOrigin = "https://artist.wedmacindia.com/"; // MUST match actual deployed artist origin
   const receivePath = "/receive-token";
   const receiveUrl = `${artistOrigin}${receivePath}`;
 
