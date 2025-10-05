@@ -429,7 +429,7 @@ export default function LeadDistributionWithToggle() {
 
          <Input
   type="number"
-  placeholder="Budget range"
+  placeholder="Budget"
   onChange={(e) => handleChange("budget_range", Number(e.target.value))}
 />
 

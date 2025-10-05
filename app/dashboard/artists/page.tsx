@@ -146,51 +146,129 @@ const [createError, setCreateError] = useState<string | null>(null);
     }
   };
 
-  const updateExtendedDays = async (artistId: number) => {
-    const raw = window.prompt("Enter number of days to ADD to artist's extended days", "10");
-    if (raw === null) return;
-    const delta = parseInt(raw.trim(), 10);
-    if (!Number.isFinite(delta) || isNaN(delta)) {
-      toast.error("Invalid number entered");
+const updateExtendedDays = async (artistId: number) => {
+  // Use empty default so OK without typing = treated as skip
+  const rawDays = window.prompt(
+    "Enter number of days to change. Leave blank to skip:",
+    ""
+  );
+  if (rawDays === null) return; // user cancelled
+
+  const rawLeads = window.prompt(
+    "Enter number of leads to ADD (positive integer). Leave blank to skip:",
+    ""
+  );
+  if (rawLeads === null) return; // user cancelled
+
+  const daysTrim = rawDays.trim();
+  const leadsTrim = rawLeads.trim();
+
+  // treat blank as skip (null)
+  const daysVal = daysTrim === "" ? null : parseInt(daysTrim, 10);
+  const leadsVal = leadsTrim === "" ? null : parseInt(leadsTrim, 10);
+
+  // validations
+  if (daysVal !== null && !Number.isFinite(daysVal)) {
+    toast.error("Invalid days value — enter a number (can be negative).");
+    return;
+  }
+  if (leadsVal !== null && (!Number.isFinite(leadsVal) || leadsVal <= 0)) {
+    toast.error("Delta available leads must be a positive integer (or leave blank to skip).");
+    return;
+  }
+
+  if (daysVal === null && leadsVal === null) {
+    // nothing to update
+    toast("No changes provided — nothing to update.", { icon: "ℹ️" });
+    return;
+  }
+
+  // Optional: ask for confirmation if daysVal === 0 (user explicitly entered 0)
+  if (daysVal === 0 && leadsVal === null) {
+    // user specifically set 0 days — likely mistake
+    const confirmZero = window.confirm("You entered 0 days (no change). Do you want to continue?");
+    if (!confirmZero) return;
+  }
+  if (leadsVal === 0) { // this should already be blocked by validation, but double-check
+    toast.error("0 is not allowed for leads. Use a positive number or leave blank.");
+    return;
+  }
+
+  setActionLoading((p) => ({ ...p, [artistId]: true }));
+  try {
+    const tokenFromStorage =
+      typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
+    const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
+    const endpoint = `${API_HOST}/api/artists/admin/update-extended-days/`;
+
+    const payload: any = { artist_id: artistId };
+    if (daysVal !== null) payload.delta_extended_days = daysVal;
+    if (leadsVal !== null) payload.delta_available_leads = leadsVal;
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: token } : {}),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`;
+      toast.error(msg);
       return;
     }
-    setActionLoading((p) => ({ ...p, [artistId]: true }));
-    try {
-      const tokenFromStorage = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-      const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
-      const endpoint = `${API_HOST}/api/artists/admin/update-extended-days/`;
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          ...(token ? { Authorization: token } : {}),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ artist_id: artistId, delta }),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`;
-        toast.error(msg);
-        return;
-      }
-      setArtists((prev) =>
-        prev.map((a) => {
-          if (a.id !== artistId) return a;
-          return {
-            ...a,
-            available_leads: typeof json.available_leads !== "undefined" ? Number(json.available_leads) : a.available_leads,
-            extended_days: typeof json.extended_days !== "undefined" ? Number(json.extended_days) : (a as any).extended_days,
-          };
-        })
-      );
-      toast.success(`Extended days updated (${delta >= 0 ? "+" : ""}${delta})`);
-    } catch (err) {
-      console.error("updateExtendedDays failed:", err);
-      toast.error("Failed to update extended days");
-    } finally {
-      setActionLoading((p) => ({ ...p, [artistId]: false }));
+
+    // Update local state from server response when possible
+    setArtists((prev) =>
+      prev.map((a) => {
+        if (a.id !== artistId) return a;
+        const updated: any = { ...a };
+
+        if (json && typeof json.available_leads !== "undefined") {
+          updated.available_leads = Number(json.available_leads);
+        } else if (leadsVal !== null) {
+          const cur = typeof a.available_leads === "number" ? a.available_leads : 0;
+          updated.available_leads = Math.max(0, cur + leadsVal);
+        }
+
+        if (json && typeof json.extended_days !== "undefined") {
+          updated.extended_days = Number(json.extended_days);
+        } else if (daysVal !== null) {
+          const curExt = typeof (a as any).extended_days === "number" ? (a as any).extended_days : 0;
+          updated.extended_days = curExt + daysVal;
+        }
+
+        return updated;
+      })
+    );
+
+    // Build a friendly success message using server response if available, else using delta values
+    const msgs: string[] = [];
+    if (typeof json?.extended_days !== "undefined") {
+      msgs.push(`Extended days: ${json.extended_days}`);
+    } else if (daysVal !== null) {
+      msgs.push(`Delta days: ${daysVal >= 0 ? `+${daysVal}` : daysVal}`);
     }
-  };
+    if (typeof json?.available_leads !== "undefined") {
+      msgs.push(`Available leads: ${json.available_leads}`);
+    } else if (leadsVal !== null) {
+      msgs.push(`Delta leads: +${leadsVal}`);
+    }
+
+    toast.success(`Update successful — ${msgs.join(" · ")}`);
+  } catch (err) {
+    console.error("updateExtendedDays failed:", err);
+    toast.error("Failed to update extended days");
+  } finally {
+    setActionLoading((p) => ({ ...p, [artistId]: false }));
+  }
+};
+
+
 
 const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
   if (!artistPhone) { toast.error("Artist phone not available"); return; }
