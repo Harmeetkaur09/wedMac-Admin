@@ -79,6 +79,17 @@ const sidebarItems = [
       { title: "Blog Management", href: "/dashboard/content/blog" },
     ],
   },
+    {
+    title: "Logs Management",
+    href: "/dashboard/logs/pages",
+    icon: <FileText className="h-5 w-5" />,
+    subItems: [
+      // { title: "WYSIWYG Editor", href: "/dashboard/content/editor" },
+      { title: "History Logs", href: "/dashboard/logs/history" },
+
+ 
+    ],
+  },
   // {
   //   title: "Reporting & Analytics",
   //   href: "/dashboard/reports",
