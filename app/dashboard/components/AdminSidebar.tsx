@@ -18,6 +18,7 @@ import {
   Sparkles,
   Menu,
   X,
+  History,
 } from "lucide-react"
 import { useAuth } from "../../contexts/AuthContext"
 import { Button } from "@/components/ui/button"
@@ -82,7 +83,7 @@ const sidebarItems = [
     {
     title: "Logs Management",
     href: "/dashboard/logs/pages",
-    icon: <FileText className="h-5 w-5" />,
+    icon: <History className="h-5 w-5" />,
     subItems: [
       // { title: "WYSIWYG Editor", href: "/dashboard/content/editor" },
       { title: "History Logs", href: "/dashboard/logs/history" },
