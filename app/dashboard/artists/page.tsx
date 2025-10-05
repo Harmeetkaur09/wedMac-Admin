@@ -195,34 +195,51 @@ const [createError, setCreateError] = useState<string | null>(null);
 const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
   if (!artistPhone) { toast.error("Artist phone not available"); return; }
 
-  // 1) prepare listener first (so we don't miss child's "receive-ready")
-  const artistOrigin = "https://artist.wedmacindia.com"; // MUST match actual deployed artist origin
+  const artistOrigin = "https://artist.wedmacindia.com";
   const receivePath = "/receive-token";
   const receiveUrl = `${artistOrigin}${receivePath}`;
 
   let newWin: Window | null = null;
   let fallbackTimer: number | null = null;
 
+  // tokens will be filled after API call
+  let access: string | undefined;
+  let refresh: string | undefined;
+  let userId: number | null = null;
+
+  // buffer the receive-ready event if it arrives before tokens
+  let bufferedEvent: MessageEvent | null = null;
+
+  const sendPayloadToSource = (source: Window | null, origin: string) => {
+    if (!source) return;
+    const payload = { access, refresh, user_id: userId };
+    try {
+      (source as any).postMessage(payload, origin);
+      console.log("Sent tokens to artist window via postMessage");
+    } catch (err) {
+      console.warn("postMessage to artist failed:", err);
+    }
+  };
+
   const onMessage = (e: MessageEvent) => {
     try {
-      if (e.origin !== artistOrigin) return; // strict origin check
-      // accept a handshake from child
+      if (e.origin !== artistOrigin) return;
       if (!e.data || e.data.type !== "receive-ready") return;
 
-      // send tokens back to the child window (use e.source if available)
-      const payload = { access, refresh, user_id: userId };
-      try {
-        if (e.source && typeof (e.source as any).postMessage === "function") {
-          (e.source as Window).postMessage(payload, e.origin);
-        } else if (newWin && !newWin.closed) {
-          newWin.postMessage(payload, artistOrigin);
-        }
-      } catch (err) {
-        console.warn("postMessage to artist failed:", err);
-      } finally {
-        if (fallbackTimer) window.clearTimeout(fallbackTimer);
-        window.removeEventListener("message", onMessage);
+      // if tokens are not ready yet, buffer the event and wait
+      if (!access) {
+        bufferedEvent = e;
+        return;
       }
+
+      // tokens are ready -> send immediately
+      if (e.source && typeof (e.source as any).postMessage === "function") {
+        (e.source as Window).postMessage({ access, refresh, user_id: userId }, e.origin);
+      } else if (newWin && !newWin.closed) {
+        newWin.postMessage({ access, refresh, user_id: userId }, artistOrigin);
+      }
+      if (fallbackTimer) window.clearTimeout(fallbackTimer);
+      window.removeEventListener("message", onMessage);
     } catch (err) {
       console.error("onMessage error:", err);
     }
@@ -230,7 +247,7 @@ const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
 
   window.addEventListener("message", onMessage, false);
 
-  // 2) open the new window *immediately* (blank) so popup isn't blocked and opener exists
+  // open a blank window immediately to avoid popup blocking
   newWin = typeof window !== "undefined" ? window.open("", "_blank") : null;
   if (typeof window !== "undefined" && !newWin) {
     toast.error("Popup blocked. Please allow popups for this site.");
@@ -240,36 +257,77 @@ const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
 
   setActionLoading((p) => ({ ...p, [artistId ?? -1]: true }));
   try {
-    // fetch tokens from API (unchanged; keep same endpoint)
+    // fetch tokens from server
     const endpoint = `${API_HOST}/api/users/admin/login-as-artist/`;
-    const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json", ...(sessionStorage.getItem("accessToken") ? { Authorization: `Bearer ${sessionStorage.getItem("accessToken")}` } : {}) }, body: JSON.stringify({ phone: String(artistPhone) }) });
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(sessionStorage.getItem("accessToken") ? { Authorization: `Bearer ${sessionStorage.getItem("accessToken")}` } : {}),
+      },
+      body: JSON.stringify({ phone: String(artistPhone) }),
+    });
     const json = await res.json().catch(() => null);
-    if (!res.ok) { const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`; toast.error(msg); if (newWin && !newWin.closed) newWin.close(); window.removeEventListener("message", onMessage); return; }
+    if (!res.ok) {
+      const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`;
+      toast.error(msg);
+      if (newWin && !newWin.closed) newWin.close();
+      window.removeEventListener("message", onMessage);
+      return;
+    }
 
-    const access = json?.access, refresh = json?.refresh, userId = json?.user_id ?? null;
-    if (!access) { toast.error("Login-as-artist did not return access token"); if (newWin && !newWin.closed) newWin.close(); window.removeEventListener("message", onMessage); return; }
+    // set tokens in outer scope
+    access = json?.access;
+    refresh = json?.refresh;
+    userId = json?.user_id ?? null;
 
-    // 3) navigate child to receive page AFTER opening it
+    if (!access) {
+      toast.error("Login-as-artist did not return access token");
+      if (newWin && !newWin.closed) newWin.close();
+      window.removeEventListener("message", onMessage);
+      return;
+    }
+
+    // navigate child to receive page
     try { if (newWin && !newWin.closed) newWin.location.href = receiveUrl; }
     catch (e) { console.warn("Navigation to receive-token failed:", e); }
 
-    // 4) set a fallback: after timeout, try direct postMessage (or fragment fallback)
+    // if we buffered a receive-ready earlier, reply now
+    if (bufferedEvent) {
+      try {
+        if (bufferedEvent.source && typeof (bufferedEvent.source as any).postMessage === "function") {
+          (bufferedEvent.source as Window).postMessage({ access, refresh, user_id: userId }, bufferedEvent.origin);
+        } else if (newWin && !newWin.closed) {
+          newWin.postMessage({ access, refresh, user_id: userId }, artistOrigin);
+        }
+      } catch (err) {
+        console.warn("Failed to send buffered payload:", err);
+      } finally {
+        bufferedEvent = null;
+        if (fallbackTimer) window.clearTimeout(fallbackTimer);
+        window.removeEventListener("message", onMessage);
+        return;
+      }
+    }
+
+    // fallback after a shorter timeout (e.g. 5s)
     fallbackTimer = window.setTimeout(() => {
       try {
         const payload = { access, refresh, user_id: userId };
         if (newWin && !newWin.closed) {
           try { newWin.postMessage(payload, artistOrigin); console.log("Fallback: posted tokens to artist window"); }
           catch (err) {
-            // fragment fallback
-            newWin.location.href = `${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
+            // fragment fallback if postMessage fails
+            newWin.location.href = `${receiveUrl}#access=${encodeURIComponent(String(access))}${refresh ? `&refresh=${encodeURIComponent(String(refresh))}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`;
           }
         } else {
-          window.open(`${receiveUrl}#access=${encodeURIComponent(access)}${refresh ? `&refresh=${encodeURIComponent(refresh)}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`, "_blank");
+          // if the window was closed, open a new one with fragment
+          window.open(`${receiveUrl}#access=${encodeURIComponent(String(access))}${refresh ? `&refresh=${encodeURIComponent(String(refresh))}` : ""}${userId ? `&user_id=${encodeURIComponent(String(userId))}` : ""}`, "_blank");
         }
       } finally {
         window.removeEventListener("message", onMessage);
       }
-    }, 10000); // give longer time (10s)
+    }, 5000); // 5 seconds fallback
   } catch (err) {
     console.error("Login-as-artist failed:", err);
     toast.error("Failed to login as artist");
@@ -279,6 +337,7 @@ const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
     setActionLoading((p) => ({ ...p, [artistId ?? -1]: false }));
   }
 };
+
 
 
 const postArtistTag = async (artistId: number, tag: string) => {
