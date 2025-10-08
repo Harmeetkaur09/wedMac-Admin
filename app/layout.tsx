@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description: "Admin panel for managing makeup artist marketplace",
   generator: "v0.dev",
   icons: {
-    icon: [{ url: "/logotab.png", type: "image/png" }],
+    icon: [{ url: "/images/logotab.png", type: "image/png" }],
         shortcut: "/favicon.ico",
     apple: "/apple-touch-icon.png", // optional
   },
