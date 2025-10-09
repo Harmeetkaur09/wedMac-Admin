@@ -77,6 +77,7 @@ const sidebarItems = [
       // { title: "WYSIWYG Editor", href: "/dashboard/content/editor" },
       { title: "Artist Comments", href: "/dashboard/content/pages" },
       { title: "Reported Leads", href: "/dashboard/content/media" },
+      { title: "Support & Help", href: "/dashboard/content/support" },
       { title: "Blog Management", href: "/dashboard/content/blog" },
     ],
   },
