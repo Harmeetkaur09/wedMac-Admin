@@ -261,11 +261,10 @@ export default function SupportPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Support Tickets — Admin</h1>
-          <p className="text-sm text-gray-600">Manage support tickets (open / in_progress / resolved / closed)</p>
+          <h1 className="text-2xl font-bold">Support Tickets </h1>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => fetchTickets()}>Refresh</Button>
+          {/* <Button onClick={() => fetchTickets()}>Refresh</Button> */}
         </div>
       </div>
 
