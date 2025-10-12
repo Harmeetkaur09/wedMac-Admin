@@ -742,6 +742,7 @@ try {
     <p className="text-xs text-gray-500">Max Claim: {lead.maxClaims ?? "-"}</p>
     <p className="text-xs text-gray-500">Claimed: {lead.claimedCount ?? "-"}</p>
     <p className="text-xs text-gray-500 break-all">Requested Artist: {lead.requested_artist ? `${lead.requested_artist.first_name} ${lead.requested_artist.last_name}` : "-"}</p>
+    <p className="text-xs text-gray-500">Verification Status: {lead.is_verified ? "Verified" : "Unverified"}</p>
                           </div>
                           <div className="flex flex-col items-end gap-2">
                             <div className="text-sm text-gray-500">{lead.booking_date ?? lead.date ?? "-"}</div>
