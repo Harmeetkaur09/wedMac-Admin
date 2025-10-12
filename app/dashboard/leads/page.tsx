@@ -52,6 +52,7 @@ type Lead = {
   service?: string;
   location?: string;
    status: "new" | "booked" | "claimed";
+   is_verified: boolean;
   source?: string;
   date?: string;
   maxClaims?: number | null;
@@ -119,6 +120,7 @@ const mapToLead = (raw: RawLead): Lead => {
   } else if (raw.lead_name) {
     name = String(raw.lead_name);
   }
+  const is_verified = raw.is_verified ?? false;
 
   const email = raw.email ?? raw.contact_email ?? raw.client_email ?? null;
   const phone =
@@ -165,6 +167,8 @@ const mapToLead = (raw: RawLead): Lead => {
     budget,
     budgetMax,
     assigned_to: raw.assigned_to ?? null,
+    is_verified: raw.is_verified ?? false,
+
         requested_artist: raw.requested_artist ?? null,   // ✅ yeh line add karo
 
     raw,
@@ -172,6 +176,7 @@ const mapToLead = (raw: RawLead): Lead => {
     makeup_types: raw.makeup_types ?? [],   // ✅ ये add करना है
   };
 };
+
 
 
 export default function LeadManagement() {
@@ -317,6 +322,35 @@ useEffect(() => {
       hasFetched.current = true;
     }
   }, []);
+  const handleVerifyLead = async (lead: Lead) => {
+  try {
+    const confirmVerify = window.confirm(`Verify lead "${lead.name}"?`);
+    if (!confirmVerify) return;
+
+    const url = `${UPDATE_URL_BASE}/admin/${lead.id}/set-verified/`;
+    const resp = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ is_verified: true }),
+    });
+
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`Failed to verify lead: ${resp.status} ${txt}`);
+    }
+
+    toast.success("Lead verified successfully!");
+    // refresh the list so the change reflects
+    await fetchLeads();
+  } catch (err: any) {
+    console.error(err);
+    toast.error(err?.message ?? "Failed to verify lead");
+  }
+};
+
 
   // helper: generic PUT to update lead (keeps existing behavior)
   const patchLead = async (id: string | number, body: Record<string, any>) => {
@@ -728,10 +762,17 @@ try {
                                 <DropdownMenuItem onClick={() => handleSetMaxClaims(lead)}>
                                   Set Capping
                                 </DropdownMenuItem>
+                                {lead.is_verified === false && (
+  <DropdownMenuItem onClick={() => handleVerifyLead(lead)}>
+    Verify Lead
+  </DropdownMenuItem>
+)}
+
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem className="text-red-500" onClick={() => handleSoftDelete(lead)}>
                                   Delete
                                 </DropdownMenuItem>
+                                
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
@@ -809,6 +850,12 @@ try {
  {lead?.requested_artist
       ? `${lead.requested_artist.first_name} ${lead.requested_artist.last_name}`
       : "-"}
+      {lead.is_verified ? (
+  <Badge className="bg-green-100 text-green-800">Verified</Badge>
+) : (
+  <Badge className="bg-red-100 text-red-800">Unverified</Badge>
+)}
+
 </TableCell>
 
 
@@ -843,6 +890,11 @@ try {
                                   <DropdownMenuItem onClick={() => handleSetMaxClaims(lead)}>
                                     Set Capping
                                   </DropdownMenuItem>
+                                  {!lead.is_verified && (
+    <DropdownMenuItem onClick={() => handleVerifyLead(lead)}>
+      Verify Lead
+    </DropdownMenuItem>
+  )}
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem className="text-red-500" onClick={() => handleSoftDelete(lead)}>
                                     Delete
