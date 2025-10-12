@@ -846,17 +846,23 @@ try {
                               </div>
                             </TableCell>
 
-                          <TableCell>
- {lead?.requested_artist
-      ? `${lead.requested_artist.first_name} ${lead.requested_artist.last_name}`
-      : "-"}
+            <TableCell>
+  <div className="flex flex-col">
+    <div>
+      {lead?.requested_artist
+        ? `${lead.requested_artist.first_name} ${lead.requested_artist.last_name}`
+        : "-"}
+    </div>
+    <div>
       {lead.is_verified ? (
-  <Badge className="bg-green-100 text-green-800">Verified</Badge>
-) : (
-  <Badge className="bg-red-100 text-red-800">Unverified</Badge>
-)}
-
+        <Badge className="bg-green-100 text-green-800">Verified</Badge>
+      ) : (
+        <Badge className="bg-red-100 text-red-800">Unverified</Badge>
+      )}
+    </div>
+  </div>
 </TableCell>
+
 
 
                             <TableCell>{lead.maxClaims ?? "-"}</TableCell>
