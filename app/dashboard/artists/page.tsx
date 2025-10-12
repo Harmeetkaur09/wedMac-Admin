@@ -415,6 +415,41 @@ const loginAsArtist = async (artistPhone?: string, artistId?: number) => {
     setActionLoading((p) => ({ ...p, [artistId ?? -1]: false }));
   }
 };
+// --- Add this function near your other action functions (e.g. after toggleArtistStatus) ---
+const deleteArtist = async (artistId: number) => {
+  if (!window.confirm("Are you sure you want to DELETE this artist? This action cannot be undone.")) return;
+  setActionLoading((p) => ({ ...p, [artistId]: true }));
+  try {
+    const tokenFromStorage = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
+    const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
+    const endpoint = `${API_HOST}/api/artists/admin/${artistId}/delete-artist/`;
+    const res = await fetch(endpoint, {
+      method: "DELETE",
+      headers: {
+        ...(token ? { Authorization: token } : {}),
+        "Content-Type": "application/json",
+      },
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      const msg = (json && (json.detail || json.message)) || `Request failed: ${res.status}`;
+      toast.error(msg);
+      return;
+    }
+
+    // remove from local state if present
+    setArtists((prev) => prev.filter((a) => a.id !== artistId));
+    toast.success("Artist deleted successfully");
+  } catch (err) {
+    console.error("Delete artist failed:", err);
+    toast.error("Failed to delete artist");
+  } finally {
+    setActionLoading((p) => ({ ...p, [artistId]: false }));
+  }
+};
+
 
 
 
@@ -1140,6 +1175,13 @@ const createArtist = async () => {
                                   );
                                 })()
                               )}
+                              <DropdownMenuItem
+  onClick={() => deleteArtist(artist.id)}
+  disabled={!!actionLoading[artist.id]}
+  className="text-red-600"
+>
+  {actionLoading[artist.id] ? "Processing..." : "Delete Artist"}
+</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -1275,6 +1317,13 @@ const createArtist = async () => {
                                   );
                                 })()
                               )}
+                              <DropdownMenuItem
+  onClick={() => deleteArtist(artist.id)}
+  disabled={!!actionLoading[artist.id]}
+  className="text-red-600"
+>
+  {actionLoading[artist.id] ? "Processing..." : "Delete Artist"}
+</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
