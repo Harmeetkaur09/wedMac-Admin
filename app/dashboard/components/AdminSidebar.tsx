@@ -145,70 +145,74 @@ export default function AdminSidebar() {
           const isItemExpanded = isExpanded(item.title)
 
           return (
-            <div key={index} className="space-y-1">
-            <div
-  className={`group flex items-center justify-between p-3 rounded-xl transition-all duration-300 cursor-pointer ${
-    isActive
-      ? "bg-gradient-to-r from-[#FF6B9D] to-[#FF5A8C] text-white shadow-lg transform scale-[1.02]"
-      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-  }`}
-  onClick={(e) => {
-    if (hasSubItems) {
-      e.preventDefault()
-      toggleExpanded(item.title)
-    } else {
-      setIsMobileOpen(false)
-    }
-  }}
->
-<div
-  className="flex items-center space-x-3 flex-1"
->
-  <span
-    className={`transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`}
+          <div key={index} className="space-y-1">
+  <Link
+    href={item.href}
+    onClick={(e) => {
+      if (hasSubItems) {
+        e.preventDefault()
+        toggleExpanded(item.title)
+      } else {
+        setIsMobileOpen(false)
+      }
+    }}
+    className={`group flex items-center justify-between p-3 rounded-xl transition-all duration-300 cursor-pointer ${
+      isActive
+        ? "bg-gradient-to-r from-[#FF6B9D] to-[#FF5A8C] text-white shadow-lg transform scale-[1.02]"
+        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+    }`}
   >
-    {item.icon}
-  </span>
-  <span className="font-medium text-sm">{item.title}</span>
-</div>
+    <div className="flex items-center space-x-3 flex-1">
+      <span
+        className={`transition-transform duration-300 ${
+          isActive ? "scale-110" : "group-hover:scale-110"
+        }`}
+      >
+        {item.icon}
+      </span>
+      <span className="font-medium text-sm">{item.title}</span>
+    </div>
 
+    {hasSubItems && (
+      <div
+        className={`transition-transform duration-300 ${
+          isItemExpanded ? "rotate-180" : ""
+        }`}
+      >
+        <ChevronDown className="h-4 w-4" />
+      </div>
+    )}
+  </Link>
 
+  {/* Sub Items */}
   {hasSubItems && (
-    <div className={`transition-transform duration-300 ${isItemExpanded ? "rotate-180" : ""}`}>
-      <ChevronDown className="h-4 w-4" />
+    <div
+      className={`ml-4 space-y-1 overflow-hidden transition-all duration-300 ${
+        isItemExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+      }`}
+    >
+      {item.subItems?.map((subItem, subIndex) => {
+        const isSubActive = pathname === subItem.href
+        return (
+          <Link
+            key={subIndex}
+            href={subItem.href}
+            onClick={() => setIsMobileOpen(false)}
+            className={`flex items-center space-x-3 p-2 pl-8 rounded-lg text-sm transition-all duration-200 ${
+              isSubActive
+                ? "bg-[#FF6B9D]/10 text-[#FF6B9D] font-medium border-l-2 border-[#FF6B9D]"
+                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+            }`}
+          >
+            <ChevronRight className="h-3 w-3" />
+            <span>{subItem.title}</span>
+          </Link>
+        )
+      })}
     </div>
   )}
 </div>
 
-
-              {/* Sub Items */}
-              {hasSubItems && (
-                <div
-                  className={`ml-4 space-y-1 overflow-hidden transition-all duration-300 ${
-                    isItemExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
-                  }`}
-                >
-                  {item.subItems?.map((subItem, subIndex) => {
-                    const isSubActive = pathname === subItem.href
-                    return (
-                      <Link
-                        key={subIndex}
-                        href={subItem.href}
-                        onClick={() => setIsMobileOpen(false)}
-                        className={`flex items-center space-x-3 p-2 pl-8 rounded-lg text-sm transition-all duration-200 ${
-                          isSubActive
-                            ? "bg-[#FF6B9D]/10 text-[#FF6B9D] font-medium border-l-2 border-[#FF6B9D]"
-                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                        }`}
-                      >
-                        <ChevronRight className="h-3 w-3" />
-                        <span>{subItem.title}</span>
-                      </Link>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
           )
         })}
       </nav>
