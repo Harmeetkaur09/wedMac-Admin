@@ -149,7 +149,7 @@ const mapToLead = (raw: RawLead): Lead => {
   const budget = parseNumber(raw.budget ?? raw.estimated_budget ?? raw.project_budget);
 
   const budgetMax = parseNumber(
-    raw.budget_range?.max_value ?? raw.max_budget ?? raw.budgetMax
+    raw.budget_range?.min_value ?? raw.max_budget ?? raw.budgetMax
   );
 
   return {
