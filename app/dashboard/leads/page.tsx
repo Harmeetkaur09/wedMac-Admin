@@ -43,6 +43,8 @@ type Artist = {
 
 type Lead = {
   event_type?: string;
+  first_name?: string;  
+  last_name?: string;
   booking_date: string;
   makeup_types?: { id: number | string; name: string }[];
   id: number | string;
@@ -236,8 +238,8 @@ useEffect(() => {
   // NEW: edit modal state
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [editForm, setEditForm] = useState<{
-    name?: string;
-    event_type?: string;
+ first_name?: string;
+  last_name?: string;    event_type?: string;
     booking_date?: string;
     location?: string;
     phone?: string;
@@ -368,8 +370,8 @@ useEffect(() => {
         const txt = await resp.text();
         throw new Error(`Update failed: ${resp.status} ${txt}`);
       }
-      window.location.reload();
       const data = await resp.json().catch(() => null);
+      window.location.reload();
       return data ?? body;
     } catch (err) {
       throw err;
@@ -403,8 +405,9 @@ useEffect(() => {
   const openEditModal = (lead: Lead) => {
     setEditingLead(lead);
     setEditForm({
-      name: lead.name ?? "",
-      event_type: lead.event_type ?? "",
+  first_name: lead.raw?.first_name ?? firstName ?? "",
+  last_name: lead.raw?.last_name ?? lastName ?? "",    
+    event_type: lead.event_type ?? "",
       booking_date: lead.booking_date ?? lead.date ?? "",
       location: lead.location ?? "",
       phone: lead.phone ?? "",
@@ -420,7 +423,8 @@ useEffect(() => {
     const leadId = editingLead.id;
     // build payload — only include fields you want to update (send nulls allowed)
     const payload: Record<string, any> = {};
-    if (editForm.name !== undefined) payload.name = editForm.name;
+if (editForm.first_name !== undefined) payload.first_name = editForm.first_name;
+if (editForm.last_name !== undefined) payload.last_name = editForm.last_name;
     if (editForm.event_type !== undefined) payload.event_type = editForm.event_type;
     if (editForm.booking_date !== undefined) payload.booking_date = editForm.booking_date || null;
     if (editForm.location !== undefined) payload.location = editForm.location;
@@ -1015,14 +1019,29 @@ try {
 
 
             <div className="grid grid-cols-1 gap-3">
-              <label className="text-xs text-gray-600">Name</label>
-              <Input
-                value={editForm.name ?? ""}
-                onChange={(e) => setEditForm((s) => ({ ...s, name: e.target.value }))}
-                placeholder="Lead name"
-                required
-              />
-              {formErrors?.name && <p className="text-red-600 text-xs mt-1">{formErrors.name.join(", ")}</p>}
+            <div className="grid grid-cols-2 gap-4">
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+    <Input
+      value={editForm.first_name ?? ""}
+      onChange={(e) => setEditForm((p) => ({ ...p, first_name: e.target.value }))}
+      placeholder="Enter first name"
+    />
+  </div>
+              {formErrors?.first_name && <p className="text-red-600 text-xs mt-1">{formErrors.first_name.join(", ")}</p>}
+
+
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+    <Input
+      value={editForm.last_name ?? ""}
+      onChange={(e) => setEditForm((p) => ({ ...p, last_name: e.target.value }))}
+      placeholder="Enter last name"
+    />
+  </div>
+</div>
+
+              {formErrors?.last_name && <p className="text-red-600 text-xs mt-1">{formErrors.last_name.join(", ")}</p>}
 
 
         <label className="text-xs text-gray-600">Makeup Types</label>
