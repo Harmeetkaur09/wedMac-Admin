@@ -24,20 +24,20 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState(""); // success/info messages
   const [resendCooldown, setResendCooldown] = useState(0);
-const { user } = useAuth();
+  const { user } = useAuth();
 
   const { login, loginWithToken } = useAuth();
   const router = useRouter();
 
-useEffect(() => {
- if (!isLoading && user) { // ya useAuth me user object check karein
-    const storedUser = sessionStorage.getItem("accessToken") ;
-    if (storedUser) {
-      router.push("/dashboard"); // Already logged in → dashboard
+  useEffect(() => {
+    if (!isLoading && user) {
+      // ya useAuth me user object check karein
+      const storedUser = sessionStorage.getItem("accessToken");
+      if (storedUser) {
+        router.push("/dashboard"); // Already logged in → dashboard
+      }
     }
-  }
-}, [isLoading, router]);
-
+  }, [isLoading, router]);
 
   useEffect(() => {
     let t: number | undefined;
@@ -65,15 +65,19 @@ useEffect(() => {
 
     try {
       setIsLoading(true);
-      const res = await fetch("https://api.wedmacindia.com/api/superadmin/login/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
-      });
+      const res = await fetch(
+        "https://api.wedmacindia.com/api/superadmin/login/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone }),
+        }
+      );
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const msg = (data && (data.message || data.error)) || "Failed to send OTP";
+        const msg =
+          (data && (data.message || data.error)) || "Failed to send OTP";
         throw new Error(msg);
       }
 
@@ -88,104 +92,129 @@ useEffect(() => {
     }
   };
 
-const handleVerifyOtp = async (e?: React.FormEvent) => {
-  if (e) e.preventDefault();
-  setError("");
-  setInfo("");
+  const handleVerifyOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setError("");
+    setInfo("");
 
-  if (!validatePhone(phone)) {
-    setError("Please enter a valid phone number");
-    return;
-  }
-  if (!otp || otp.trim().length < 3) {
-    setError("Please enter the OTP");
-    return;
-  }
-
-  try {
-    setIsLoading(true);
-
-    const payload = { phone, otp };
-    const res = await fetch("https://api.wedmacindia.com/api/superadmin/verify-otp/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const text = await res.text();
-    let data: any = {};
-    try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
-
-    console.log("[verify-otp] status:", res.status, "body:", data);
-
-    if (!res.ok) {
-      const serverMsg = (data && (data.message || data.error)) || data.raw || `OTP verification failed (status ${res.status})`;
-      throw new Error(serverMsg);
+    if (!validatePhone(phone)) {
+      setError("Please enter a valid phone number");
+      return;
     }
-
-    const access =
-      data?.access ||
-      data?.token ||
-      data?.accessToken ||
-      data?.access_token ||
-      data?.authToken ||
-      data?.data?.access ||
-      data?.data?.token;
-
-    const refresh = data?.refresh || data?.refreshToken || data?.refresh_token;
-
-    // IMPORTANT: build a fallback user object using username/is_superuser when server hasn't returned `user`
-    const userObj =
-      data?.user ||
-      data?.admin ||
-      (data?.data && typeof data.data === "object" && data.data.user) ||
-      {
-        username: data?.username || data?.user_name || "",
-        is_superuser: data?.is_superuser ?? false,
-      };
-
-    if (!access) {
-      console.warn("[verify-otp] no access token in response keys:", Object.keys(data || {}));
-      setError("OTP verified but no access token received from server.");
+    if (!otp || otp.trim().length < 3) {
+      setError("Please enter the OTP");
       return;
     }
 
-    // Prefer calling loginWithToken so AuthProvider updates React state immediately
-    if (typeof loginWithToken === "function") {
-      try {
-        await loginWithToken(access, userObj);
-      } catch (err) {
-        console.warn("loginWithToken failed, falling back to direct storage:", err);
-        sessionStorage.setItem("accessToken", access);
-        try { localStorage.setItem("atlas_admin_user", JSON.stringify(userObj)); } catch {}
-      }
-    } else {
-      // fallback directly store the keys AuthProvider expects
-      sessionStorage.setItem("accessToken", access);
-      try { localStorage.setItem("atlas_admin_user", JSON.stringify(userObj)); } catch (err) { console.warn(err); }
-    }
-
-    // keep authData for compatibility with any other code
     try {
-      const authObj = { token: access, access, refresh, user: userObj };
-      sessionStorage.setItem("authData", JSON.stringify(authObj));
-      console.log("[verify-otp] stored authData/session keys:", authObj);
-    } catch (e) { console.warn(e); }
+      setIsLoading(true);
 
-    // optional dev cookie (not secure) - remove in production if backend sets httpOnly cookie
-    try { document.cookie = `access=${encodeURIComponent(access)}; path=/; max-age=${60 * 60 * 24}`; } catch (e) {}
+      const payload = { phone, otp };
+      const res = await fetch(
+        "https://api.wedmacindia.com/api/superadmin/verify-otp/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
 
-    setInfo("Login successful — redirecting to dashboard...");
-    router.push("/dashboard");
-  } catch (err: any) {
-    console.error("[verify-otp] error:", err);
-    setError(err?.message || "OTP verification failed");
-  } finally {
-    setIsLoading(false);
-  }
-};
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { raw: text };
+      }
 
+      console.log("[verify-otp] status:", res.status, "body:", data);
 
+      if (!res.ok) {
+        const serverMsg =
+          (data && (data.message || data.error)) ||
+          data.raw ||
+          `OTP verification failed (status ${res.status})`;
+        throw new Error(serverMsg);
+      }
+
+      const access =
+        data?.access ||
+        data?.token ||
+        data?.accessToken ||
+        data?.access_token ||
+        data?.authToken ||
+        data?.data?.access ||
+        data?.data?.token;
+
+      const refresh =
+        data?.refresh || data?.refreshToken || data?.refresh_token;
+
+      // IMPORTANT: build a fallback user object using username/is_superuser when server hasn't returned `user`
+      const userObj = data?.user ||
+        data?.admin ||
+        (data?.data && typeof data.data === "object" && data.data.user) || {
+          username: data?.username || data?.user_name || "",
+          is_superuser: data?.is_superuser ?? false,
+        };
+
+      if (!access) {
+        console.warn(
+          "[verify-otp] no access token in response keys:",
+          Object.keys(data || {})
+        );
+        setError("OTP verified but no access token received from server.");
+        return;
+      }
+
+      // Prefer calling loginWithToken so AuthProvider updates React state immediately
+      if (typeof loginWithToken === "function") {
+        try {
+          await loginWithToken(access, userObj);
+        } catch (err) {
+          console.warn(
+            "loginWithToken failed, falling back to direct storage:",
+            err
+          );
+          sessionStorage.setItem("accessToken", access);
+          try {
+            localStorage.setItem("atlas_admin_user", JSON.stringify(userObj));
+          } catch {}
+        }
+      } else {
+        // fallback directly store the keys AuthProvider expects
+        sessionStorage.setItem("accessToken", access);
+        try {
+          localStorage.setItem("atlas_admin_user", JSON.stringify(userObj));
+        } catch (err) {
+          console.warn(err);
+        }
+      }
+
+      // keep authData for compatibility with any other code
+      try {
+        const authObj = { token: access, access, refresh, user: userObj };
+        sessionStorage.setItem("authData", JSON.stringify(authObj));
+        console.log("[verify-otp] stored authData/session keys:", authObj);
+      } catch (e) {
+        console.warn(e);
+      }
+
+      // optional dev cookie (not secure) - remove in production if backend sets httpOnly cookie
+      try {
+        document.cookie = `access=${encodeURIComponent(
+          access
+        )}; path=/; max-age=${60 * 60 * 24}`;
+      } catch (e) {}
+
+      setInfo("Login successful — redirecting to dashboard...");
+      router.push("/dashboard");
+    } catch (err: any) {
+      console.error("[verify-otp] error:", err);
+      setError(err?.message || "OTP verification failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleResend = async () => {
     if (resendCooldown > 0) return;
@@ -203,13 +232,21 @@ const handleVerifyOtp = async (e?: React.FormEvent) => {
       <Card className="w-full max-w-md relative z-10 backdrop-blur-sm bg-white/90 shadow-2xl border-0 animate-fade-in">
         <CardHeader className="text-center space-y-4">
           <div className="mx-auto w-50 h-50 flex items-center justify-center transform hover:scale-105 transition-transform duration-300">
-            <img src="/images/website_logo.png" alt="Website Logo" width={140} height={50} className="object-contain" />
+            <img
+              src="/images/website_logo.png"
+              alt="Website Logo"
+              width={140}
+              height={50}
+              className="object-contain"
+            />
           </div>
           <div className="space-y-2">
             <CardTitle className="text-3xl font-bold bg-gradient-to-r from-[#FF6B9D] to-[#FF5A8C] bg-clip-text text-transparent">
               Wedmac India Admin
             </CardTitle>
-            <CardDescription className="text-gray-600">Sign in to access the admin dashboard</CardDescription>
+            <CardDescription className="text-gray-600">
+              Sign in to access the admin dashboard
+            </CardDescription>
           </div>
         </CardHeader>
 
@@ -217,7 +254,10 @@ const handleVerifyOtp = async (e?: React.FormEvent) => {
           {step === "phone" && (
             <form onSubmit={handleSendOtp} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
+                <Label
+                  htmlFor="phone"
+                  className="text-sm font-medium text-gray-700"
+                >
                   Phone
                 </Label>
                 <div className="relative group">
@@ -225,9 +265,13 @@ const handleVerifyOtp = async (e?: React.FormEvent) => {
                   <Input
                     id="phone"
                     type="text"
-                    placeholder="1234567890"
+                    placeholder="Enter Number"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/[^\d]/g, "").slice(0, 10))}
+                    onChange={(e) =>
+                      setPhone(
+                        e.target.value.replace(/[^\d]/g, "").slice(0, 10)
+                      )
+                    }
                     className="pl-10 border-gray-200 focus:border-[#FF6B9D] focus:ring-[#FF6B9D] transition-all duration-300"
                     disabled={isLoading}
                   />
@@ -266,7 +310,10 @@ const handleVerifyOtp = async (e?: React.FormEvent) => {
           {step === "otp" && (
             <form onSubmit={handleVerifyOtp} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="otp" className="text-sm font-medium text-gray-700">
+                <Label
+                  htmlFor="otp"
+                  className="text-sm font-medium text-gray-700"
+                >
                   Enter OTP sent to {phone}
                 </Label>
                 <div className="relative group">
@@ -274,9 +321,11 @@ const handleVerifyOtp = async (e?: React.FormEvent) => {
                   <Input
                     id="otp"
                     type="text"
-                    placeholder="123456"
+                    placeholder="Enter OTP"
                     value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/[^\d]/g, "").slice(0, 6))}
+                    onChange={(e) =>
+                      setOtp(e.target.value.replace(/[^\d]/g, "").slice(0, 6))
+                    }
                     className="pl-10 border-gray-200 focus:border-[#FF6B9D] focus:ring-[#FF6B9D] transition-all duration-300"
                     disabled={isLoading}
                   />
@@ -306,7 +355,9 @@ const handleVerifyOtp = async (e?: React.FormEvent) => {
                     disabled={isLoading || resendCooldown > 0}
                     className="py-2"
                   >
-                    {resendCooldown > 0 ? `Resend (${resendCooldown}s)` : "Resend OTP"}
+                    {resendCooldown > 0
+                      ? `Resend (${resendCooldown}s)`
+                      : "Resend OTP"}
                   </Button>
                   <Button
                     type="submit"
@@ -319,7 +370,9 @@ const handleVerifyOtp = async (e?: React.FormEvent) => {
                         <span>Verifying...</span>
                       </div>
                     ) : (
-                      <span className="flex items-center gap-2"><Check /> Verify</span>
+                      <span className="flex items-center gap-2">
+                        <Check /> Verify
+                      </span>
                     )}
                   </Button>
                 </div>
