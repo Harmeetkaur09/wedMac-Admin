@@ -324,7 +324,7 @@ export default function LoginPage() {
                     placeholder="Enter OTP"
                     value={otp}
                     onChange={(e) =>
-                      setOtp(e.target.value.replace(/[^\d]/g, "").slice(0, 6))
+                      setOtp(e.target.value.replace(/[^\d]/g, "").slice(0, 10))
                     }
                     className="pl-10 border-gray-200 focus:border-[#FF6B9D] focus:ring-[#FF6B9D] transition-all duration-300"
                     disabled={isLoading}
