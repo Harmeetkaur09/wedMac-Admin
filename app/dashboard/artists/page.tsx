@@ -61,6 +61,10 @@ export default function ArtistListPage() {
 
   const [actionLoading, setActionLoading] = useState<Record<number, boolean>>({});
   const API_HOST = "https://api.wedmacindia.com";
+const [totalCount, setTotalCount] = useState(0);
+const [debouncedSearch, setDebouncedSearch] = useState("");
+// add this state near other states
+const [hasNext, setHasNext] = useState(false);
 
   const [plans, setPlans] = useState<any[]>([]);
   const [plansLoading, setPlansLoading] = useState(false);
@@ -592,39 +596,78 @@ const updateArtistPhone = async (artistId: number, currentPhone?: string) => {
     setActionLoading((p) => ({ ...p, [artistId]: false }));
   }
 };
+useEffect(() => {
+const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
+return () => clearTimeout(t);
+}, [search]);
+
+const ENDPOINT_BASE = `${API_HOST}/api/admin/artists`;
 
 
-  const fetchArtists = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const tokenFromStorage = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
-      const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
-      const url = new URL(`${API_HOST}/api/admin/artists`);
-      url.searchParams.set("Status", "all");
-      const res = await fetch(url.toString(), {
-        headers: {
-          ...(token ? { Authorization: token } : {}),
-          "Content-Type": "application/json",
-        },
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`API error: ${res.status} ${text}`);
-      }
-      const data: any = await res.json();
-      let list: Artist[] = [];
-      if (Array.isArray(data)) list = data;
-      else if (data && typeof data === "object" && "results" in data && Array.isArray(data.results)) list = data.results;
-      setArtists(list);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Failed to fetch artists");
-    } finally {
-      setLoading(false);
+
+// inside component — replace existing fetchArtists with this
+const fetchArtists = async () => {
+  setLoading(true);
+  setError(null);
+  try {
+    const tokenFromStorage = typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
+    const token = tokenFromStorage ? `Bearer ${tokenFromStorage}` : undefined;
+
+    const url = new URL(ENDPOINT_BASE);
+    if (debouncedSearch) url.searchParams.set("search", debouncedSearch);
+    if (statusFilter && statusFilter !== "all") url.searchParams.set("status", statusFilter);
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("page_size", String(perPage)); // <= important
+
+    const res = await fetch(url.toString(), {
+      headers: {
+        ...(token ? { Authorization: token } : {}),
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`API error: ${res.status} ${text}`);
     }
-  };
+
+    const data: any = await res.json();
+
+    // Expecting backend shape: { results: [...], count: N } or array (legacy)
+    if (Array.isArray(data)) {
+      setArtists(data);
+      setTotalCount(data.length);
+      setHasNext(data.length > 0 && data.length === perPage); // best-effort
+    } else if (data && Array.isArray(data.results)) {
+      setArtists(data.results);
+      setTotalCount(Number(data.count) || data.results.length);
+      setHasNext(Boolean(data.next) || (page * perPage) < (Number(data.count) || 0));
+    } else if (data && Array.isArray(data.items)) {
+      setArtists(data.items);
+      setTotalCount(Number(data.total) || data.items.length);
+      setHasNext((page * perPage) < (Number(data.total) || 0));
+    } else {
+      // fallback: try to find first array
+      const maybeList = data && typeof data === "object" ? Object.values(data).filter((v) => Array.isArray(v)).flat()[0] : null;
+      if (Array.isArray(maybeList)) {
+        setArtists(maybeList as any);
+        setTotalCount(maybeList.length);
+        setHasNext(maybeList.length === perPage);
+      } else {
+        setArtists([]);
+        setTotalCount(0);
+        setHasNext(false);
+      }
+    }
+  } catch (err: any) {
+    console.error(err);
+    setError(err.message || "Failed to fetch artists");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const fetchPlans = async () => {
     setPlansLoading(true);
@@ -661,7 +704,10 @@ const updateArtistPhone = async (artistId: number, currentPhone?: string) => {
     fetchPlans();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
+useEffect(() => {
+  fetchArtists();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [page, debouncedSearch, statusFilter]);
   const counts = useMemo(() => {
     const c = { active: 0, pending: 0, inactive: 0, totalBookings: 0 } as any;
     for (const a of artists) {
@@ -690,7 +736,7 @@ const updateArtistPhone = async (artistId: number, currentPhone?: string) => {
     });
   }, [artists, search, statusFilter]);
 
-  const pages = Math.max(1, Math.ceil(filtered.length / perPage));
+const pages = Math.max(1, Math.ceil(totalCount / perPage));
   const paginated = filtered.slice((page - 1) * perPage, page * perPage);
 
   useEffect(() => {
@@ -1009,15 +1055,15 @@ const createArtist = async () => {
             <div className="flex w-full sm:w-auto gap-2 items-center">
               <div className="relative flex-1 sm:flex-none">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search artists..."
-                  className="pl-8 w-full sm:w-64"
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(1);
-                  }}
-                />
+            <Input
+placeholder="Search artists..."
+className="pl-8 w-full sm:w-64"
+value={search}
+onChange={(e) => {
+setSearch(e.target.value);
+setPage(1);
+}}
+/>
               </div>
 
               <div className="flex items-center gap-2">
@@ -1047,7 +1093,7 @@ const createArtist = async () => {
             <>
               {/* MOBILE: card list */}
               <div className="sm:hidden space-y-3">
-                {paginated.map((artist) => {
+                {artists.map((artist) => {
                   const isActive = typeof artist.is_active === "boolean" ? artist.is_active : (artist.status || "").toLowerCase() === "active";
                   return (
                     <div key={artist.id} className="bg-white border rounded-lg p-3 shadow-sm">
@@ -1207,7 +1253,7 @@ const createArtist = async () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginated.map((artist) => (
+                    {artists.map((artist) => (
                       <TableRow key={artist.id} className="hover:bg-gray-50 transition-colors">
                         <TableCell>
                           <div className="flex items-center">
@@ -1330,28 +1376,37 @@ const createArtist = async () => {
                       </TableRow>
                     ))}
 
-                    {paginated.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={8} className="py-8 text-center text-gray-500">
-                          No artists found
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+            {artists.length === 0 && (
+<TableRow>
+<TableCell colSpan={8} className="py-8 text-center text-gray-500">
+No artists found
+</TableCell>
+</TableRow>
+)}
+</TableBody>
+</Table>
+</div>
 
-              <div className="flex items-center justify-end space-x-2 py-4">
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
-                  Previous
-                </Button>
-                <div className="px-3 py-2 rounded bg-[#FF6B9D] text-white">{page}</div>
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages}>
-                  Next
-                </Button>
-              </div>
-            </>
-          )}
+
+<div className="flex items-center justify-end space-x-2 py-4">
+  <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1 || loading}>
+    Previous
+  </Button>
+
+  <div className="px-3 py-2 rounded bg-[#FF6B9D] text-white">{page}</div>
+
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={() => setPage((p) => Math.min(p + 1, pages))}
+    disabled={!hasNext || loading || page >= pages}
+  >
+    Next
+  </Button>
+</div>
+
+</>
+)}
         </CardContent>
       </Card>
 
