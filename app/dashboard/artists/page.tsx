@@ -65,8 +65,7 @@ const [totalCount, setTotalCount] = useState(0);
 const [debouncedSearch, setDebouncedSearch] = useState("");
 // add this state near other states
 const [hasNext, setHasNext] = useState(false);
-
-  const [plans, setPlans] = useState<any[]>([]);
+const [hasPrev, setHasPrev] = useState(false);  const [plans, setPlans] = useState<any[]>([]);
   const [plansLoading, setPlansLoading] = useState(false);
   const [formErrors, setFormErrors] = useState<{ first_name?: string; last_name?: string; phone?: string }>({});
   const isAlpha = (s: string) => /^[A-Za-z\s]+$/.test(s.trim());
@@ -617,7 +616,7 @@ const fetchArtists = async () => {
     if (debouncedSearch) url.searchParams.set("search", debouncedSearch);
     if (statusFilter && statusFilter !== "all") url.searchParams.set("status", statusFilter);
     url.searchParams.set("page", String(page));
-    url.searchParams.set("page_size", String(perPage)); // <= important
+    url.searchParams.set("page_size", String(perPage));
 
     const res = await fetch(url.toString(), {
       headers: {
@@ -632,41 +631,71 @@ const fetchArtists = async () => {
       throw new Error(`API error: ${res.status} ${text}`);
     }
 
-    const data: any = await res.json();
+    const data: any = await res.json().catch(() => null);
 
-    // Expecting backend shape: { results: [...], count: N } or array (legacy)
+    // Default fallbacks
+    let list: any[] = [];
+    let serverTotal = 0;
+    let nextUrl: string | null = null;
+    let prevUrl: string | null = null;
+
     if (Array.isArray(data)) {
-      setArtists(data);
-      setTotalCount(data.length);
-      setHasNext(data.length > 0 && data.length === perPage); // best-effort
+      list = data;
+      serverTotal = data.length;
+      nextUrl = data.length === perPage ? "" : null; // best-effort
+      prevUrl = page > 1 ? "" : null;
     } else if (data && Array.isArray(data.results)) {
-      setArtists(data.results);
-      setTotalCount(Number(data.count) || data.results.length);
-      setHasNext(Boolean(data.next) || (page * perPage) < (Number(data.count) || 0));
+      list = data.results;
+      serverTotal = Number.isFinite(Number(data.count)) ? Number(data.count) : data.results.length;
+      nextUrl = data.next ?? null;
+      prevUrl = data.previous ?? null;
     } else if (data && Array.isArray(data.items)) {
-      setArtists(data.items);
-      setTotalCount(Number(data.total) || data.items.length);
-      setHasNext((page * perPage) < (Number(data.total) || 0));
+      list = data.items;
+      serverTotal = Number.isFinite(Number(data.total)) ? Number(data.total) : data.items.length;
+      // unknown next/prev shape => use count fallback
+      nextUrl = (page * perPage) < serverTotal ? "" : null;
+      prevUrl = page > 1 ? "" : null;
     } else {
-      // fallback: try to find first array
-      const maybeList = data && typeof data === "object" ? Object.values(data).filter((v) => Array.isArray(v)).flat()[0] : null;
+      // try to find any array in object
+      const maybeList = data && typeof data === "object" ? Object.values(data).find((v) => Array.isArray(v)) : null;
       if (Array.isArray(maybeList)) {
-        setArtists(maybeList as any);
-        setTotalCount(maybeList.length);
-        setHasNext(maybeList.length === perPage);
+        list = maybeList;
+        serverTotal = maybeList.length;
+        nextUrl = maybeList.length === perPage ? "" : null;
+        prevUrl = page > 1 ? "" : null;
       } else {
-        setArtists([]);
-        setTotalCount(0);
-        setHasNext(false);
+        list = [];
+        serverTotal = 0;
+        nextUrl = null;
+        prevUrl = null;
       }
+    }
+
+    setArtists(list);
+    setTotalCount(serverTotal);
+
+    // If API returned explicit next/previous fields use them (null -> no page)
+    if (data && (data.next !== undefined || data.previous !== undefined)) {
+      setHasNext(Boolean(data.next));      // data.next === null => false
+      setHasPrev(Boolean(data.previous));  // data.previous === null => false
+    } else {
+      // fallback best-effort using counts/pages
+      const pages = serverTotal > 0 ? Math.ceil(serverTotal / perPage) : 1;
+      setHasNext(page < pages);
+      setHasPrev(page > 1);
     }
   } catch (err: any) {
     console.error(err);
     setError(err.message || "Failed to fetch artists");
+    setArtists([]);
+    setTotalCount(0);
+    setHasNext(false);
+    setHasPrev(false);
   } finally {
     setLoading(false);
   }
 };
+
 
 
   const fetchPlans = async () => {
@@ -1389,7 +1418,12 @@ No artists found
 
 
 <div className="flex items-center justify-end space-x-2 py-4">
-  <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1 || loading}>
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={() => setPage((p) => Math.max(1, p - 1))}
+    disabled={!hasPrev || loading || page === 1}
+  >
     Previous
   </Button>
 
@@ -1398,12 +1432,13 @@ No artists found
   <Button
     variant="outline"
     size="sm"
-    onClick={() => setPage((p) => Math.min(p + 1, pages))}
-    disabled={!hasNext || loading || page >= pages}
+    onClick={() => setPage((p) => p + 1)}
+    disabled={!hasNext || loading}
   >
     Next
   </Button>
 </div>
+
 
 </>
 )}
